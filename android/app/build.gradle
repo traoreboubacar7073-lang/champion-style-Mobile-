@@ -1,7 +1,9 @@
 plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
+    id("com.android.application")
+    // Le plugin Gradle de Flutter doit être appliqué après le plugin Android.
+    // Depuis Android Gradle Plugin 9, Kotlin est pris en charge nativement
+    // (plus besoin d'appliquer un plugin Kotlin séparé).
+    id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
@@ -14,12 +16,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
     }
 
     defaultConfig {
@@ -27,7 +27,7 @@ android {
         // publiée quelque part, sinon Android la considère comme une
         // application différente.
         applicationId = "com.championsstyle.champions_style"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
