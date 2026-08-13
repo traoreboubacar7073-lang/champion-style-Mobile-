@@ -1,0 +1,193 @@
+import 'dart:async';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+/// Base de données locale de l'application — tout reste sur le téléphone,
+/// aucune connexion internet n'est nécessaire pour utiliser l'application.
+///
+/// Chaque table correspond à une section de l'application (clients,
+/// commandes, factures...). La table `corbeille` centralise les éléments
+/// supprimés de n'importe quelle table, pour permettre de les restaurer
+/// pendant 30 jours — exactement comme sur les versions ordinateur et web.
+class AppDatabase {
+  AppDatabase._internal();
+  static final AppDatabase instance = AppDatabase._internal();
+
+  static Database? _db;
+
+  Future<Database> get database async {
+    if (_db != null) return _db!;
+    _db = await _initDb();
+    return _db!;
+  }
+
+  Future<Database> _initDb() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'champions_style.db');
+    return openDatabase(
+      path,
+      version: 1,
+      onCreate: _onCreate,
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE clients (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        tel TEXT,
+        ville TEXT,
+        sexe TEXT,
+        depuis TEXT,
+        mesures TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE modeles (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        categorie TEXT,
+        prix REAL DEFAULT 0,
+        jours INTEGER DEFAULT 1,
+        photo TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE commandes (
+        id TEXT PRIMARY KEY,
+        client TEXT NOT NULL,
+        modele TEXT,
+        couturier TEXT,
+        statut TEXT DEFAULT 'Nouvelle',
+        dateEssayage TEXT,
+        livraison TEXT,
+        montant REAL DEFAULT 0,
+        avance REAL DEFAULT 0,
+        photo TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE devis (
+        id TEXT PRIMARY KEY,
+        client TEXT NOT NULL,
+        montant REAL DEFAULT 0,
+        statut TEXT DEFAULT 'En attente',
+        date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE factures (
+        id TEXT PRIMARY KEY,
+        client TEXT NOT NULL,
+        montant REAL DEFAULT 0,
+        statut TEXT DEFAULT 'Impayée',
+        solde REAL DEFAULT 0,
+        date TEXT,
+        commandeId TEXT,
+        devisId TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE paiements (
+        id TEXT PRIMARY KEY,
+        client TEXT NOT NULL,
+        montant REAL DEFAULT 0,
+        mode TEXT,
+        reference TEXT,
+        date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE depenses (
+        id TEXT PRIMARY KEY,
+        categorie TEXT NOT NULL,
+        fournisseur TEXT,
+        montant REAL DEFAULT 0,
+        montantVerse REAL DEFAULT 0,
+        reliquat REAL DEFAULT 0,
+        date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE fournisseurs (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        contact TEXT,
+        ville TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE employes (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        poste TEXT,
+        specialite TEXT,
+        dispo TEXT,
+        frequencePaiement TEXT DEFAULT 'Mensuel',
+        tauxPaiement REAL DEFAULT 0,
+        embauche TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE paiements_employes (
+        id TEXT PRIMARY KEY,
+        employe TEXT NOT NULL,
+        montant REAL DEFAULT 0,
+        mode TEXT,
+        periode TEXT,
+        date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE stock (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        type TEXT,
+        qte REAL DEFAULT 0,
+        unite TEXT,
+        seuil REAL DEFAULT 0,
+        fournisseur TEXT
+      )
+    ''');
+
+    // Corbeille commune à toutes les tables ci-dessus : au lieu de
+    // supprimer définitivement une ligne, on la déplace ici (en JSON)
+    // avec la date de suppression, pour pouvoir la restaurer.
+    await db.execute('''
+      CREATE TABLE corbeille (
+        trashId TEXT PRIMARY KEY,
+        tableName TEXT NOT NULL,
+        itemJson TEXT NOT NULL,
+        trashedAt INTEGER NOT NULL
+      )
+    ''');
+
+    // Paramètres de l'application : une seule ligne (id fixe = 1),
+    // stockée en JSON pour rester flexible (infos entreprise, police...).
+    await db.execute('''
+      CREATE TABLE parametres (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        businessOverrideJson TEXT DEFAULT '{}',
+        policeStyle TEXT DEFAULT 'elegant',
+        tailleTexte TEXT DEFAULT 'normale'
+      )
+    ''');
+    await db.insert('parametres', {
+      'id': 1,
+      'businessOverrideJson': '{}',
+      'policeStyle': 'elegant',
+      'tailleTexte': 'normale',
+    });
+  }
+}

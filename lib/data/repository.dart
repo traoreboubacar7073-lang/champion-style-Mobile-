@@ -1,0 +1,216 @@
+import 'dart:convert';
+import 'package:sqflite/sqflite.dart';
+import 'database.dart';
+import 'id_generator.dart';
+import '../models/client.dart';
+import '../models/commande.dart';
+import '../models/facture.dart';
+
+/// Un élément dans la corbeille — garde le nom de la table d'origine et
+/// le contenu complet de la ligne, pour pouvoir la restaurer telle quelle.
+class TrashEntry {
+  final String trashId;
+  final String tableName;
+  final Map<String, dynamic> itemJson;
+  final int trashedAt;
+
+  TrashEntry({
+    required this.trashId,
+    required this.tableName,
+    required this.itemJson,
+    required this.trashedAt,
+  });
+
+  factory TrashEntry.fromMap(Map<String, dynamic> map) => TrashEntry(
+        trashId: map['trashId'] as String,
+        tableName: map['tableName'] as String,
+        itemJson: Map<String, dynamic>.from(jsonDecode(map['itemJson'] as String) as Map),
+        trashedAt: map['trashedAt'] as int,
+      );
+}
+
+class TrashRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<void> moveToTrash(String tableName, Map<String, dynamic> item) async {
+    final db = await _db;
+    final trashId = 'TR-${DateTime.now().millisecondsSinceEpoch}';
+    await db.insert('corbeille', {
+      'trashId': trashId,
+      'tableName': tableName,
+      'itemJson': jsonEncode(item),
+      'trashedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<List<TrashEntry>> all() async {
+    final db = await _db;
+    final rows = await db.query('corbeille', orderBy: 'trashedAt DESC');
+    return rows.map((r) => TrashEntry.fromMap(r)).toList();
+  }
+
+  Future<void> restore(String trashId) async {
+    final db = await _db;
+    final rows = await db.query('corbeille', where: 'trashId = ?', whereArgs: [trashId]);
+    if (rows.isEmpty) return;
+    final entry = TrashEntry.fromMap(rows.first);
+    await db.insert(entry.tableName, entry.itemJson, conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.delete('corbeille', where: 'trashId = ?', whereArgs: [trashId]);
+  }
+
+  Future<void> deletePermanently(String trashId) async {
+    final db = await _db;
+    await db.delete('corbeille', where: 'trashId = ?', whereArgs: [trashId]);
+  }
+
+  Future<void> emptyAll() async {
+    final db = await _db;
+    await db.delete('corbeille');
+  }
+
+  /// Supprime les éléments de plus de 30 jours — à appeler au démarrage
+  /// de l'application, comme sur les autres versions.
+  Future<void> purgeExpired() async {
+    final db = await _db;
+    final cutoff = DateTime.now().subtract(const Duration(days: 30)).millisecondsSinceEpoch;
+    await db.delete('corbeille', where: 'trashedAt < ?', whereArgs: [cutoff]);
+  }
+}
+
+class ClientRepository {
+  final _trash = TrashRepository();
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<List<Client>> all() async {
+    final db = await _db;
+    final rows = await db.query('clients', orderBy: 'rowid DESC');
+    return rows.map((r) => Client.fromMap(r)).toList();
+  }
+
+  Future<Client> create({
+    required String nom,
+    String tel = '',
+    String ville = '',
+    String sexe = '',
+    Map<String, dynamic>? mesures,
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'clients');
+    final depuis = _todayFr();
+    final client = Client(id: id, nom: nom, tel: tel, ville: ville, sexe: sexe, depuis: depuis, mesures: mesures);
+    await db.insert('clients', client.toMap());
+    return client;
+  }
+
+  Future<void> update(Client client) async {
+    final db = await _db;
+    await db.update('clients', client.toMap(), where: 'id = ?', whereArgs: [client.id]);
+  }
+
+  Future<void> delete(Client client) async {
+    final db = await _db;
+    await _trash.moveToTrash('clients', client.toMap());
+    await db.delete('clients', where: 'id = ?', whereArgs: [client.id]);
+  }
+}
+
+class CommandeRepository {
+  final _trash = TrashRepository();
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<List<Commande>> all() async {
+    final db = await _db;
+    final rows = await db.query('commandes', orderBy: 'rowid DESC');
+    return rows.map((r) => Commande.fromMap(r)).toList();
+  }
+
+  Future<Commande> create({
+    required String client,
+    required String modele,
+    String couturier = '',
+    String statut = 'Nouvelle',
+    String dateEssayage = '',
+    required String livraison,
+    double montant = 0,
+    double avance = 0,
+    String photo = '',
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'commandes');
+    final commande = Commande(
+      id: id, client: client, modele: modele, couturier: couturier, statut: statut,
+      dateEssayage: dateEssayage, livraison: livraison, montant: montant, avance: avance, photo: photo,
+    );
+    await db.insert('commandes', commande.toMap());
+    return commande;
+  }
+
+  Future<void> update(Commande commande) async {
+    final db = await _db;
+    await db.update('commandes', commande.toMap(), where: 'id = ?', whereArgs: [commande.id]);
+  }
+
+  Future<void> updateStatut(String id, String statut) async {
+    final db = await _db;
+    await db.update('commandes', {'statut': statut}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> delete(Commande commande) async {
+    final db = await _db;
+    await _trash.moveToTrash('commandes', commande.toMap());
+    await db.delete('commandes', where: 'id = ?', whereArgs: [commande.id]);
+  }
+}
+
+class FactureRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Facture>> all() async {
+    final db = await _db;
+    final rows = await db.query('factures', orderBy: 'rowid DESC');
+    return rows.map((r) => Facture.fromMap(r)).toList();
+  }
+
+  Future<Facture> create({
+    required String client,
+    double montant = 0,
+    String statut = 'Impayée',
+    double solde = 0,
+    String? commandeId,
+    String? devisId,
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'factures');
+    final facture = Facture(
+      id: id, client: client, montant: montant, statut: statut, solde: solde,
+      date: _todayFr(), commandeId: commandeId, devisId: devisId,
+    );
+    await db.insert('factures', facture.toMap());
+    return facture;
+  }
+
+  Future<void> delete(Facture facture) async {
+    final db = await _db;
+    await _trash.moveToTrash('factures', facture.toMap());
+    await db.delete('factures', where: 'id = ?', whereArgs: [facture.id]);
+  }
+
+  /// Crée automatiquement une facture à partir d'une commande — même
+  /// logique que le bouton "Facturer" sur les autres versions.
+  Future<Facture> creerDepuisCommande(Commande commande) async {
+    final solde = commande.solde;
+    final statut = solde == 0 && commande.montant > 0
+        ? 'Payée'
+        : commande.avance > 0
+            ? 'Partielle'
+            : 'Impayée';
+    return create(client: commande.client, montant: commande.montant, statut: statut, solde: solde, commandeId: commande.id);
+  }
+}
+
+String _todayFr() {
+  const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  final d = DateTime.now();
+  return '${d.day.toString().padLeft(2, '0')} ${mois[d.month - 1]} ${d.year}';
+}
