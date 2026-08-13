@@ -1,16 +1,3 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Android Gradle Plugin 9 embarque Kotlin nativement (version 2.2.10
-        // par défaut), mais Flutter exige au moins la version 2.2.20 — cette
-        // ligne force l'utilisation d'une version plus récente et compatible.
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
-    }
-}
-
 allprojects {
     repositories {
         google()
