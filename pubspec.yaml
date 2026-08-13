@@ -19,9 +19,10 @@ dependencies:
   # Polices Google (Cormorant Garamond + Inter, comme sur les autres versions)
   google_fonts: ^6.1.0
 
-  # Sélection / prise de photo (produits, modèles) — utilisé dans une
-  # prochaine étape, pour le module Produits & Services.
-  image_picker: ^1.0.4
+  # Remarque : image_picker (prise de photo produit) sera ajouté quand on
+  # construira le module Produits & Services — retiré pour l'instant, un
+  # bug connu de l'outil "lint" d'Android plante dessus avec les toutes
+  # dernières versions d'AGP.
 
 dev_dependencies:
   flutter_test:
