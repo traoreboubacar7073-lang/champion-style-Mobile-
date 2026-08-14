@@ -14,6 +14,7 @@ import 'factures_screen.dart';
 import 'produits_screen.dart';
 import 'stock_screen.dart';
 import 'rapports_screen.dart';
+import '../services/route_observer.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -31,7 +32,7 @@ class _ActiviteItem {
   _ActiviteItem({required this.icon, required this.color, required this.titre, required this.sousTitre, required this.onTap});
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   List<Commande> _commandes = [];
   List<Client> _clients = [];
   List<Facture> _factures = [];
@@ -44,6 +45,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) routeObserver.subscribe(this, route);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // Appelé automatiquement quand on revient sur le tableau de bord après
+    // avoir fermé un écran ouvert par-dessus (ex : "Voir tout") — on
+    // recharge pour être sûr d'afficher les toutes dernières données.
     _load();
   }
 

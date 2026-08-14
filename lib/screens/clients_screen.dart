@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../models/client.dart';
+import '../models/employe.dart';
 import '../models/mesures.dart';
+import '../models/modele.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
@@ -15,6 +17,8 @@ class ClientsScreen extends StatefulWidget {
 class _ClientsScreenState extends State<ClientsScreen> {
   final _repo = ClientRepository();
   List<Client> _clients = [];
+  List<Employe> _employes = [];
+  List<Modele> _modeles = [];
   bool _loading = true;
   String _search = '';
 
@@ -26,9 +30,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   Future<void> _load() async {
     final clients = await _repo.all();
+    final employes = await EmployeRepository().all();
+    final modeles = await ModeleRepository().all();
     if (!mounted) return;
     setState(() {
       _clients = clients;
+      _employes = employes;
+      _modeles = modeles;
       _loading = false;
     });
   }
@@ -45,6 +53,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
       title: editing != null ? 'Modifier le client' : 'Nouveau client',
       child: _ClientForm(
         existing: editing,
+        employes: _employes,
+        modeles: _modeles,
         onSaved: () {
           Navigator.of(context).pop();
           _load();
@@ -144,8 +154,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
 /// mesures qui change automatiquement selon le sexe choisi.
 class _ClientForm extends StatefulWidget {
   final Client? existing;
+  final List<Employe> employes;
+  final List<Modele> modeles;
   final VoidCallback onSaved;
-  const _ClientForm({this.existing, required this.onSaved});
+  const _ClientForm({this.existing, required this.employes, required this.modeles, required this.onSaved});
 
   @override
   State<_ClientForm> createState() => _ClientFormState();
@@ -161,8 +173,8 @@ class _ClientFormState extends State<_ClientForm> {
   bool _saving = false;
 
   // Première commande (facultative), uniquement à la création d'un client.
-  final _cmdModeleCtrl = TextEditingController();
-  final _cmdCouturierCtrl = TextEditingController();
+  String? _cmdModele;
+  String? _cmdCouturier;
   final _cmdMontantCtrl = TextEditingController();
   final _cmdAvanceCtrl = TextEditingController();
   String? _cmdPhoto;
@@ -190,8 +202,6 @@ class _ClientFormState extends State<_ClientForm> {
     _nomCtrl.dispose();
     _telCtrl.dispose();
     _villeCtrl.dispose();
-    _cmdModeleCtrl.dispose();
-    _cmdCouturierCtrl.dispose();
     _cmdMontantCtrl.dispose();
     _cmdAvanceCtrl.dispose();
     for (final ctrl in _mesureCtrls.values) {
@@ -233,7 +243,7 @@ class _ClientFormState extends State<_ClientForm> {
       // Si une première commande a été renseignée, on la crée directement
       // (et sa facture automatiquement si une avance a été versée) — pas
       // besoin de ressaisir le client dans la section Commandes ensuite.
-      if (_cmdModeleCtrl.text.trim().isNotEmpty) {
+      if ((_cmdModele ?? '').trim().isNotEmpty) {
         final montant = double.tryParse(_cmdMontantCtrl.text) ?? 0;
         final avance = double.tryParse(_cmdAvanceCtrl.text) ?? 0;
         const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -241,8 +251,8 @@ class _ClientFormState extends State<_ClientForm> {
         final livraison = '${now.day.toString().padLeft(2, '0')} ${mois[now.month - 1]} ${now.year}';
         final commande = await CommandeRepository().create(
           client: nouveauClient.nom,
-          modele: _cmdModeleCtrl.text.trim(),
-          couturier: _cmdCouturierCtrl.text.trim(),
+          modele: _cmdModele!.trim(),
+          couturier: _cmdCouturier ?? '',
           livraison: livraison,
           montant: montant,
           avance: avance,
@@ -323,11 +333,31 @@ class _ClientFormState extends State<_ClientForm> {
           const SizedBox(height: 10),
           Text('Modèle', style: TextStyle(color: context.textMuted, fontSize: 12)),
           const SizedBox(height: 6),
-          TextField(controller: _cmdModeleCtrl, decoration: const InputDecoration(hintText: 'Ex : Robe Sirène Wax')),
+          CatalogPickerField(
+            options: [for (final m in widget.modeles) m.nom],
+            initialValue: _cmdModele,
+            hintText: 'Choisir un modèle du catalogue…',
+            customHintText: 'Ex : Robe apportée par la cliente',
+            onChanged: (v) => setState(() => _cmdModele = v),
+          ),
           const SizedBox(height: 12),
           Text('Couturier assigné', style: TextStyle(color: context.textMuted, fontSize: 12)),
           const SizedBox(height: 6),
-          TextField(controller: _cmdCouturierCtrl, decoration: const InputDecoration(hintText: 'Nom du couturier (facultatif)')),
+          widget.employes.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+                  child: Text('Aucun employé enregistré — ajoute-en un dans "Employés" pour pouvoir en assigner un ici.',
+                      style: TextStyle(color: context.textFaint, fontSize: 12)),
+                )
+              : DropdownButtonFormField<String>(
+                  value: _cmdCouturier,
+                  dropdownColor: AppColors.surface,
+                  isExpanded: true,
+                  hint: Text('Choisir un couturier (facultatif)…', style: TextStyle(color: context.textFaint)),
+                  items: [for (final e in widget.employes) DropdownMenuItem(value: e.nom, child: Text(e.nom, style: TextStyle(color: context.textPrimary)))],
+                  onChanged: (v) => setState(() => _cmdCouturier = v),
+                ),
           const SizedBox(height: 12),
           Row(
             children: [

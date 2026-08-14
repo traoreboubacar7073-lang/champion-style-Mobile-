@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'data/repository.dart';
 import 'theme/app_theme.dart';
 import 'screens/main_shell.dart';
+import 'services/route_observer.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,7 @@ class _ChampionsStyleAppState extends State<ChampionsStyleApp> {
           title: 'Champions Style',
           debugShowCheckedModeBanner: false,
           theme: mode == ThemeMode.light ? AppTheme.lightTheme : AppTheme.theme,
+          navigatorObservers: [routeObserver],
           home: const MainShell(),
         );
       },

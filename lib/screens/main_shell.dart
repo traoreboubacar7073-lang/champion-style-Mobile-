@@ -54,15 +54,23 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static final List<Widget> _tabs = [
-    const DashboardScreen(),
-    const CommandesScreen(),
-    const ClientsScreen(),
-    const FacturesScreen(),
-    const _PlusGrid(),
-  ];
-
   void _selectTab(int i) => setState(() => _index = i);
+
+  // Construit l'écran actif à chaque changement d'onglet — contrairement à
+  // un IndexedStack (qui garde tous les onglets figés en mémoire dès le
+  // premier affichage), ceci force chaque écran à se recharger avec les
+  // données les plus récentes à chaque fois qu'on y retourne. C'est ce qui
+  // garantit qu'un client ajouté apparaît bien dans le formulaire de
+  // commande, qu'une commande facturée apparaît dans les factures, etc.
+  Widget _currentTab() {
+    switch (_index) {
+      case 0: return const DashboardScreen();
+      case 1: return const CommandesScreen();
+      case 2: return const ClientsScreen();
+      case 3: return const FacturesScreen();
+      default: return const _PlusGrid();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +106,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-      body: IndexedStack(index: _index, children: _tabs),
+      body: _currentTab(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),

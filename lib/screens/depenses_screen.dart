@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../models/depense.dart';
+import '../models/fournisseur.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
@@ -21,6 +22,7 @@ class DepensesScreen extends StatefulWidget {
 class _DepensesScreenState extends State<DepensesScreen> {
   final _repo = DepenseRepository();
   List<Depense> _depenses = [];
+  List<Fournisseur> _fournisseurs = [];
   bool _loading = true;
 
   @override
@@ -31,9 +33,11 @@ class _DepensesScreenState extends State<DepensesScreen> {
 
   Future<void> _load() async {
     final depenses = await _repo.all();
+    final fournisseurs = await FournisseurRepository().all();
     if (!mounted) return;
     setState(() {
       _depenses = depenses;
+      _fournisseurs = fournisseurs;
       _loading = false;
     });
   }
@@ -42,7 +46,7 @@ class _DepensesScreenState extends State<DepensesScreen> {
     await showAppBottomSheet(
       context,
       title: 'Nouvelle dépense',
-      child: _DepenseForm(onSaved: () { Navigator.of(context).pop(); _load(); }),
+      child: _DepenseForm(fournisseurs: _fournisseurs, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -132,8 +136,9 @@ class _DepensesScreenState extends State<DepensesScreen> {
 }
 
 class _DepenseForm extends StatefulWidget {
+  final List<Fournisseur> fournisseurs;
   final VoidCallback onSaved;
-  const _DepenseForm({required this.onSaved});
+  const _DepenseForm({required this.fournisseurs, required this.onSaved});
 
   @override
   State<_DepenseForm> createState() => _DepenseFormState();
@@ -143,7 +148,7 @@ class _DepenseFormState extends State<_DepenseForm> {
   final _repo = DepenseRepository();
   final _montantCtrl = TextEditingController();
   final _verseCtrl = TextEditingController();
-  final _fournisseurCtrl = TextEditingController();
+  String? _fournisseur;
   String _categorie = 'Autre';
   bool _saving = false;
 
@@ -154,7 +159,7 @@ class _DepenseFormState extends State<_DepenseForm> {
     final saisieVerse = double.tryParse(_verseCtrl.text);
     await _repo.create(
       categorie: _categorie,
-      fournisseur: _fournisseurCtrl.text.trim(),
+      fournisseur: _fournisseur ?? '',
       montant: montant,
       montantVerse: saisieVerse,
     );
@@ -180,7 +185,13 @@ class _DepenseFormState extends State<_DepenseForm> {
         const SizedBox(height: 14),
         Text('Fournisseur (facultatif)', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
-        TextField(controller: _fournisseurCtrl, decoration: const InputDecoration()),
+        CatalogPickerField(
+          options: [for (final f in widget.fournisseurs) f.nom],
+          initialValue: _fournisseur,
+          hintText: 'Choisir un fournisseur…',
+          customHintText: 'Nom du fournisseur',
+          onChanged: (v) => setState(() => _fournisseur = v),
+        ),
         const SizedBox(height: 14),
         Text('Montant total *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),

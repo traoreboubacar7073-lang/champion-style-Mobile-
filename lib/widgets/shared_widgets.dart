@@ -179,6 +179,89 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+/// Sélecteur relié à un catalogue existant (ex : Fournisseurs, Produits) —
+/// affiche les éléments déjà enregistrés dans une liste déroulante, avec
+/// une option "+ Autre" qui fait apparaître un champ libre pour les cas
+/// où l'élément n'existe pas encore dans le catalogue (ex : un client qui
+/// apporte son propre modèle, ou un tout nouveau fournisseur ponctuel).
+class CatalogPickerField extends StatefulWidget {
+  final List<String> options;
+  final String? initialValue;
+  final String hintText;
+  final String customHintText;
+  final ValueChanged<String?> onChanged;
+  const CatalogPickerField({
+    super.key,
+    required this.options,
+    this.initialValue,
+    this.hintText = 'Choisir…',
+    this.customHintText = 'Saisir un nom personnalisé',
+    required this.onChanged,
+  });
+
+  @override
+  State<CatalogPickerField> createState() => _CatalogPickerFieldState();
+}
+
+class _CatalogPickerFieldState extends State<CatalogPickerField> {
+  static const _customKey = '__autre__';
+  String? _selected;
+  late TextEditingController _customCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _customCtrl = TextEditingController();
+    final initial = widget.initialValue;
+    if (initial != null && initial.isNotEmpty) {
+      if (widget.options.contains(initial)) {
+        _selected = initial;
+      } else {
+        _selected = _customKey;
+        _customCtrl.text = initial;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _customCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _selected,
+          dropdownColor: AppColors.surface,
+          isExpanded: true,
+          hint: Text(widget.hintText, style: TextStyle(color: context.textFaint)),
+          items: [
+            for (final o in widget.options)
+              DropdownMenuItem(value: o, child: Text(o, style: TextStyle(color: context.textPrimary), overflow: TextOverflow.ellipsis)),
+            const DropdownMenuItem(value: _customKey, child: Text('+ Autre (saisir un nom)', style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w600))),
+          ],
+          onChanged: (v) {
+            setState(() => _selected = v);
+            widget.onChanged(v == _customKey ? _customCtrl.text.trim() : v);
+          },
+        ),
+        if (_selected == _customKey) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _customCtrl,
+            decoration: InputDecoration(hintText: widget.customHintText),
+            onChanged: (v) => widget.onChanged(v.trim()),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class ScreenHeader extends StatelessWidget {
   final String eyebrow;
   final String title;

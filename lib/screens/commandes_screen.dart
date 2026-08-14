@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../models/client.dart';
 import '../models/commande.dart';
+import '../models/employe.dart';
+import '../models/modele.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 import 'factures_screen.dart';
@@ -20,6 +22,8 @@ class _CommandesScreenState extends State<CommandesScreen> {
   final _clientRepo = ClientRepository();
   List<Commande> _commandes = [];
   List<Client> _clients = [];
+  List<Employe> _employes = [];
+  List<Modele> _modeles = [];
   bool _loading = true;
   String _filtre = 'Toutes';
 
@@ -32,10 +36,14 @@ class _CommandesScreenState extends State<CommandesScreen> {
   Future<void> _load() async {
     final commandes = await _repo.all();
     final clients = await _clientRepo.all();
+    final employes = await EmployeRepository().all();
+    final modeles = await ModeleRepository().all();
     if (!mounted) return;
     setState(() {
       _commandes = commandes;
       _clients = clients;
+      _employes = employes;
+      _modeles = modeles;
       _loading = false;
     });
   }
@@ -47,7 +55,7 @@ class _CommandesScreenState extends State<CommandesScreen> {
     await showAppBottomSheet(
       context,
       title: 'Nouvelle commande',
-      child: _CommandeForm(clients: _clients, onSaved: () { Navigator.of(context).pop(); _load(); }),
+      child: _CommandeForm(clients: _clients, employes: _employes, modeles: _modeles, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -162,8 +170,10 @@ class _CommandesScreenState extends State<CommandesScreen> {
 
 class _CommandeForm extends StatefulWidget {
   final List<Client> clients;
+  final List<Employe> employes;
+  final List<Modele> modeles;
   final VoidCallback onSaved;
-  const _CommandeForm({required this.clients, required this.onSaved});
+  const _CommandeForm({required this.clients, required this.employes, required this.modeles, required this.onSaved});
 
   @override
   State<_CommandeForm> createState() => _CommandeFormState();
@@ -171,8 +181,8 @@ class _CommandeForm extends StatefulWidget {
 
 class _CommandeFormState extends State<_CommandeForm> {
   final _repo = CommandeRepository();
-  final _modeleCtrl = TextEditingController();
-  final _couturierCtrl = TextEditingController();
+  String? _modele;
+  String? _couturier;
   final _montantCtrl = TextEditingController();
   final _avanceCtrl = TextEditingController();
   String? _client;
@@ -197,14 +207,14 @@ class _CommandeFormState extends State<_CommandeForm> {
   }
 
   Future<void> _save() async {
-    if (_client == null || _modeleCtrl.text.trim().isEmpty) return;
+    if (_client == null || (_modele == null || _modele!.trim().isEmpty)) return;
     setState(() => _saving = true);
     final montant = double.tryParse(_montantCtrl.text) ?? 0;
     final avance = double.tryParse(_avanceCtrl.text) ?? 0;
     final commande = await _repo.create(
       client: _client!,
-      modele: _modeleCtrl.text.trim(),
-      couturier: _couturierCtrl.text.trim(),
+      modele: _modele!.trim(),
+      couturier: _couturier ?? '',
       statut: _statut,
       livraison: _livraison != null ? _fmtDate(_livraison!) : _fmtDate(DateTime.now()),
       montant: montant,
@@ -239,11 +249,31 @@ class _CommandeFormState extends State<_CommandeForm> {
         const SizedBox(height: 14),
         Text('Modèle *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
-        TextField(controller: _modeleCtrl, decoration: const InputDecoration(hintText: 'Ex : Robe Sirène Wax')),
+        CatalogPickerField(
+          options: [for (final m in widget.modeles) m.nom],
+          initialValue: _modele,
+          hintText: 'Choisir un modèle du catalogue…',
+          customHintText: 'Ex : Robe apportée par la cliente',
+          onChanged: (v) => setState(() => _modele = v),
+        ),
         const SizedBox(height: 14),
         Text('Couturier assigné', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
-        TextField(controller: _couturierCtrl, decoration: const InputDecoration(hintText: 'Nom du couturier (facultatif)')),
+        widget.employes.isEmpty
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+                child: Text('Aucun employé enregistré — ajoute-en un dans "Employés" pour pouvoir en assigner un ici.',
+                    style: TextStyle(color: context.textFaint, fontSize: 12)),
+              )
+            : DropdownButtonFormField<String>(
+                value: _couturier,
+                dropdownColor: AppColors.surface,
+                isExpanded: true,
+                hint: Text('Choisir un couturier (facultatif)…', style: TextStyle(color: context.textFaint)),
+                items: [for (final e in widget.employes) DropdownMenuItem(value: e.nom, child: Text(e.nom, style: TextStyle(color: context.textPrimary)))],
+                onChanged: (v) => setState(() => _couturier = v),
+              ),
         const SizedBox(height: 14),
         Text('Statut', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../models/stock.dart';
+import '../models/fournisseur.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
@@ -16,6 +17,7 @@ class StockScreen extends StatefulWidget {
 class _StockScreenState extends State<StockScreen> {
   final _repo = StockRepository();
   List<StockItem> _items = [];
+  List<Fournisseur> _fournisseurs = [];
   bool _loading = true;
 
   @override
@@ -26,9 +28,11 @@ class _StockScreenState extends State<StockScreen> {
 
   Future<void> _load() async {
     final items = await _repo.all();
+    final fournisseurs = await FournisseurRepository().all();
     if (!mounted) return;
     setState(() {
       _items = items;
+      _fournisseurs = fournisseurs;
       _loading = false;
     });
   }
@@ -37,7 +41,7 @@ class _StockScreenState extends State<StockScreen> {
     await showAppBottomSheet(
       context,
       title: 'Nouvel article',
-      child: _StockForm(onSaved: () { Navigator.of(context).pop(); _load(); }),
+      child: _StockForm(fournisseurs: _fournisseurs, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -120,8 +124,9 @@ class _StockScreenState extends State<StockScreen> {
 }
 
 class _StockForm extends StatefulWidget {
+  final List<Fournisseur> fournisseurs;
   final VoidCallback onSaved;
-  const _StockForm({required this.onSaved});
+  const _StockForm({required this.fournisseurs, required this.onSaved});
 
   @override
   State<_StockForm> createState() => _StockFormState();
@@ -133,7 +138,7 @@ class _StockFormState extends State<_StockForm> {
   final _qteCtrl = TextEditingController();
   final _uniteCtrl = TextEditingController(text: 'unités');
   final _seuilCtrl = TextEditingController();
-  final _fournisseurCtrl = TextEditingController();
+  String? _fournisseur;
   String _type = 'Tissu';
   bool _saving = false;
 
@@ -146,7 +151,7 @@ class _StockFormState extends State<_StockForm> {
       qte: double.tryParse(_qteCtrl.text) ?? 0,
       unite: _uniteCtrl.text.trim().isEmpty ? 'unités' : _uniteCtrl.text.trim(),
       seuil: double.tryParse(_seuilCtrl.text) ?? 0,
-      fournisseur: _fournisseurCtrl.text.trim(),
+      fournisseur: _fournisseur ?? '',
     );
     if (!mounted) return;
     setState(() => _saving = false);
@@ -203,7 +208,13 @@ class _StockFormState extends State<_StockForm> {
         const SizedBox(height: 14),
         Text('Fournisseur', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
-        TextField(controller: _fournisseurCtrl, decoration: const InputDecoration(hintText: 'Facultatif')),
+        CatalogPickerField(
+          options: [for (final f in widget.fournisseurs) f.nom],
+          initialValue: _fournisseur,
+          hintText: 'Choisir un fournisseur…',
+          customHintText: 'Nom du fournisseur',
+          onChanged: (v) => setState(() => _fournisseur = v),
+        ),
         const SizedBox(height: 20),
         GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
       ],
