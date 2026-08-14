@@ -14,24 +14,27 @@ import 'placeholder_screen.dart';
 class DrawerItem {
   final String label;
   final IconData icon;
+  final Color color;
   final WidgetBuilder builder;
-  const DrawerItem(this.label, this.icon, this.builder);
+  const DrawerItem(this.label, this.icon, this.color, this.builder);
 }
 
 /// Liste complète des sections de l'application, utilisée à la fois pour
 /// le tiroir latéral et l'écran "Plus" — reprend la même organisation que
-/// la version ordinateur et la version web mobile.
+/// la version ordinateur et la version web mobile. Chaque section a sa
+/// propre couleur, pour que les tuiles du menu "Plus" soient visuellement
+/// distinctes d'un coup d'œil.
 final List<DrawerItem> drawerItems = [
-  DrawerItem('Produits & Services', Icons.checkroom_outlined, (_) => const ProduitsScreen()),
-  DrawerItem('Devis', Icons.description_outlined, (_) => const PlaceholderScreen(title: 'Devis')),
-  DrawerItem('Paiements', Icons.credit_card_outlined, (_) => const PlaceholderScreen(title: 'Paiements')),
-  DrawerItem('Dépenses', Icons.account_balance_wallet_outlined, (_) => const PlaceholderScreen(title: 'Dépenses')),
-  DrawerItem('Fournisseurs', Icons.local_shipping_outlined, (_) => const PlaceholderScreen(title: 'Fournisseurs')),
-  DrawerItem('Stock & Matières', Icons.inventory_2_outlined, (_) => const PlaceholderScreen(title: 'Stock & Matières')),
-  DrawerItem('Employés', Icons.manage_accounts_outlined, (_) => const PlaceholderScreen(title: 'Employés')),
-  DrawerItem('Rapports & Statistiques', Icons.bar_chart_rounded, (_) => const PlaceholderScreen(title: 'Rapports')),
-  DrawerItem('Corbeille', Icons.delete_outline, (_) => const PlaceholderScreen(title: 'Corbeille')),
-  DrawerItem('Paramètres', Icons.settings_outlined, (_) => const ParametresScreen()),
+  DrawerItem('Produits & Services', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
+  DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const PlaceholderScreen(title: 'Devis')),
+  DrawerItem('Paiements', Icons.credit_card_outlined, AppColors.deepGreen, (_) => const PlaceholderScreen(title: 'Paiements')),
+  DrawerItem('Dépenses', Icons.account_balance_wallet_outlined, AppColors.rose, (_) => const PlaceholderScreen(title: 'Dépenses')),
+  DrawerItem('Fournisseurs', Icons.local_shipping_outlined, AppColors.pink, (_) => const PlaceholderScreen(title: 'Fournisseurs')),
+  DrawerItem('Stock & Matières', Icons.inventory_2_outlined, AppColors.blue, (_) => const PlaceholderScreen(title: 'Stock & Matières')),
+  DrawerItem('Employés', Icons.manage_accounts_outlined, AppColors.purple, (_) => const PlaceholderScreen(title: 'Employés')),
+  DrawerItem('Rapports & Statistiques', Icons.bar_chart_rounded, AppColors.gold, (_) => const PlaceholderScreen(title: 'Rapports')),
+  DrawerItem('Corbeille', Icons.delete_outline, AppColors.textFaint, (_) => const PlaceholderScreen(title: 'Corbeille')),
+  DrawerItem('Paramètres', Icons.settings_outlined, AppColors.textFaint, (_) => const ParametresScreen()),
 ];
 
 class MainShell extends StatefulWidget {
@@ -223,6 +226,7 @@ class _PlusGrid extends StatelessWidget {
                     _PlusTile(
                       icon: item.icon,
                       label: item.label,
+                      color: item.color,
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: item.builder)),
                     ),
                 ],
@@ -256,8 +260,9 @@ class ScreenHeaderInline extends StatelessWidget {
 class _PlusTile extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
   final VoidCallback onTap;
-  const _PlusTile({required this.icon, required this.label, required this.onTap});
+  const _PlusTile({required this.icon, required this.label, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -265,19 +270,41 @@ class _PlusTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: context.cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: context.cardBorder),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
           children: [
-            Icon(icon, size: 22, color: AppColors.gold),
-            const SizedBox(height: 8),
-            Text(label, style: TextStyle(fontSize: 14, color: context.textPrimary, fontWeight: FontWeight.w500)),
+            // Icône géante, à peine visible, positionnée en fond pour que
+            // chaque tuile ait une identité visuelle propre d'un coup d'œil
+            // — sans dépendre d'images externes à charger.
+            Positioned(
+              right: -18,
+              bottom: -18,
+              child: Transform.rotate(
+                angle: -0.35,
+                child: Icon(icon, size: 92, color: color.withOpacity(context.isDark ? 0.16 : 0.13)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(color: color.withOpacity(0.16), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, size: 18, color: color),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(label, style: TextStyle(fontSize: 14, color: context.textPrimary, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
