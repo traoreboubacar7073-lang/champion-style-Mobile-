@@ -26,9 +26,24 @@ class AppDatabase {
     final path = join(dbPath, 'champions_style.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute("ALTER TABLE parametres ADD COLUMN themeMode TEXT DEFAULT 'dark'");
+      await db.execute('''
+        CREATE TABLE utilisateurs (
+          id TEXT PRIMARY KEY,
+          nom TEXT NOT NULL,
+          role TEXT DEFAULT 'Employé',
+          actif INTEGER DEFAULT 1
+        )
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -180,7 +195,16 @@ class AppDatabase {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         businessOverrideJson TEXT DEFAULT '{}',
         policeStyle TEXT DEFAULT 'elegant',
-        tailleTexte TEXT DEFAULT 'normale'
+        tailleTexte TEXT DEFAULT 'normale',
+        themeMode TEXT DEFAULT 'dark'
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE utilisateurs (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        role TEXT DEFAULT 'Employé',
+        actif INTEGER DEFAULT 1
       )
     ''');
     await db.insert('parametres', {
@@ -188,6 +212,7 @@ class AppDatabase {
       'businessOverrideJson': '{}',
       'policeStyle': 'elegant',
       'tailleTexte': 'normale',
+      'themeMode': 'dark',
     });
   }
 }

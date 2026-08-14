@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 
 /// Formate un montant en francs CFA (ex : "45 000 FCFA") — même format
@@ -15,6 +17,15 @@ String fmtFcfa(num amount) {
   }
   final sign = rounded < 0 ? '-' : '';
   return '$sign${buffer.toString()} FCFA';
+}
+
+extension ThemeHelpers on BuildContext {
+  bool get isDark => Theme.of(this).brightness == Brightness.dark;
+  Color get cardBg => isDark ? AppColors.surfaceLight : AppColors.surfaceLightModeSubtle;
+  Color get cardBorder => isDark ? AppColors.border : AppColors.borderLight;
+  Color get textPrimary => isDark ? AppColors.textPrimary : AppColors.textPrimaryLight;
+  Color get textMuted => isDark ? AppColors.textMuted : AppColors.textMutedLight;
+  Color get textFaint => isDark ? AppColors.textFaint : AppColors.textFaintLight;
 }
 
 class AppCard extends StatelessWidget {
@@ -34,9 +45,9 @@ class AppCard extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: context.cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: context.cardBorder),
           ),
           child: child,
         ),
@@ -53,7 +64,7 @@ class StatutBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = StatutColors.of(statut);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(999),
@@ -61,7 +72,7 @@ class StatutBadge extends StatelessWidget {
       ),
       child: Text(
         statut,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -83,7 +94,7 @@ class GoldButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
+            if (icon != null) ...[Icon(icon, size: 19), const SizedBox(width: 8)],
             Text(label),
           ],
         ),
@@ -105,12 +116,12 @@ class GhostButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: AppColors.border),
+          foregroundColor: context.textPrimary,
+          padding: const EdgeInsets.symmetric(vertical: 17),
+          side: BorderSide(color: context.cardBorder),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
       ),
     );
   }
@@ -119,7 +130,7 @@ class GhostButton extends StatelessWidget {
 class AppAvatar extends StatelessWidget {
   final String name;
   final double size;
-  const AppAvatar({super.key, required this.name, this.size = 42});
+  const AppAvatar({super.key, required this.name, this.size = 44});
 
   String get _initials {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -153,9 +164,9 @@ class EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 64),
       child: Column(
         children: [
-          Icon(icon, size: 34, color: AppColors.textFaint),
+          Icon(icon, size: 36, color: context.textFaint),
           const SizedBox(height: 12),
-          Text(text, style: const TextStyle(color: AppColors.textFaint, fontSize: 13)),
+          Text(text, style: TextStyle(color: context.textFaint, fontSize: 14), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -182,7 +193,7 @@ class ScreenHeader extends StatelessWidget {
             children: [
               Text(
                 eyebrow.toUpperCase(),
-                style: const TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2),
               ),
               const SizedBox(height: 3),
               Text(title, style: Theme.of(context).textTheme.headlineMedium),
@@ -198,7 +209,8 @@ class ScreenHeader extends StatelessWidget {
 /// Bouton rond doré, utilisé comme action "+" en haut à droite des écrans.
 class FabRound extends StatelessWidget {
   final VoidCallback onPressed;
-  const FabRound({super.key, required this.onPressed});
+  final IconData icon;
+  const FabRound({super.key, required this.onPressed, this.icon = Icons.add});
 
   @override
   Widget build(BuildContext context) {
@@ -206,10 +218,122 @@ class FabRound extends StatelessWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        width: 40,
-        height: 40,
+        width: 42,
+        height: 42,
         decoration: const BoxDecoration(shape: BoxShape.circle, gradient: AppColors.goldGradient),
-        child: const Icon(Icons.add, color: Colors.black, size: 22),
+        child: Icon(icon, color: Colors.black, size: 22),
+      ),
+    );
+  }
+}
+
+/// Sélecteur de photo — permet de prendre une photo avec l'appareil photo
+/// du téléphone ou d'en choisir une depuis la galerie. La photo est
+/// stockée encodée en base64 (comme sur les versions ordinateur et web),
+/// pour rester simple et ne dépendre d'aucun stockage de fichiers externe.
+class PhotoPickerField extends StatefulWidget {
+  final String? initialBase64;
+  final ValueChanged<String?> onChanged;
+  const PhotoPickerField({super.key, this.initialBase64, required this.onChanged});
+
+  @override
+  State<PhotoPickerField> createState() => _PhotoPickerFieldState();
+}
+
+class _PhotoPickerFieldState extends State<PhotoPickerField> {
+  String? _base64;
+
+  @override
+  void initState() {
+    super.initState();
+    _base64 = widget.initialBase64;
+  }
+
+  Future<void> _pick(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: source, maxWidth: 1080, imageQuality: 80);
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      final b64 = base64Encode(bytes);
+      if (!mounted) return;
+      setState(() => _base64 = b64);
+      widget.onChanged(b64);
+    } catch (_) {
+      // Si l'appareil ne permet pas l'accès (permission refusée, pas de
+      // caméra sur un émulateur, etc.), on ne bloque pas le formulaire —
+      // la photo reste simplement facultative.
+    }
+  }
+
+  void _showSourceSheet() {
+    final dark = context.isDark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: dark ? AppColors.surface : AppColors.surfaceLightMode,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_camera_outlined, color: ctx.textPrimary),
+              title: Text('Prendre une photo', style: TextStyle(color: ctx.textPrimary)),
+              onTap: () { Navigator.pop(ctx); _pick(ImageSource.camera); },
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_library_outlined, color: ctx.textPrimary),
+              title: Text('Choisir dans la galerie', style: TextStyle(color: ctx.textPrimary)),
+              onTap: () { Navigator.pop(ctx); _pick(ImageSource.gallery); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_base64 != null && _base64!.isNotEmpty) {
+      return Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.memory(base64Decode(_base64!), height: 160, width: double.infinity, fit: BoxFit.cover),
+          ),
+          Positioned(
+            top: 8, right: 8,
+            child: InkWell(
+              onTap: () { setState(() => _base64 = null); widget.onChanged(null); },
+              child: Container(
+                width: 28, height: 28,
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: const Icon(Icons.close, color: Colors.white, size: 16),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return InkWell(
+      onTap: _showSourceSheet,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        height: 110,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: context.cardBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.cardBorder),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_a_photo_outlined, color: context.textFaint, size: 26),
+            const SizedBox(height: 8),
+            Text('Prendre une photo ou choisir', style: TextStyle(color: context.textFaint, fontSize: 12.5)),
+          ],
+        ),
       ),
     );
   }
@@ -218,10 +342,11 @@ class FabRound extends StatelessWidget {
 /// Ouvre une feuille modale qui remonte du bas de l'écran — équivalent
 /// du "BottomSheet" utilisé sur la version web mobile.
 Future<T?> showAppBottomSheet<T>(BuildContext context, {required String title, required Widget child}) {
+  final dark = context.isDark;
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surface,
+    backgroundColor: dark ? AppColors.surface : AppColors.surfaceLightMode,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) {
       return Padding(
@@ -243,10 +368,10 @@ Future<T?> showAppBottomSheet<T>(BuildContext context, {required String title, r
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                      Expanded(child: Text(title, style: Theme.of(ctx).textTheme.titleLarge)),
                       IconButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                        icon: Icon(Icons.close, color: ctx.textPrimary, size: 20),
                       ),
                     ],
                   ),

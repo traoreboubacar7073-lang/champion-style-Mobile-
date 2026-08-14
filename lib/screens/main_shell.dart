@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/business_info.dart';
+import '../widgets/shared_widgets.dart';
 import 'dashboard_screen.dart';
 import 'clients_screen.dart';
 import 'commandes_screen.dart';
 import 'factures_screen.dart';
+import 'parametres_screen.dart';
+import 'search_screen.dart';
+import 'produits_screen.dart';
 import 'placeholder_screen.dart';
 
 class DrawerItem {
@@ -18,7 +22,7 @@ class DrawerItem {
 /// le tiroir latéral et l'écran "Plus" — reprend la même organisation que
 /// la version ordinateur et la version web mobile.
 final List<DrawerItem> drawerItems = [
-  DrawerItem('Produits & Services', Icons.checkroom_outlined, (_) => const PlaceholderScreen(title: 'Produits & Services')),
+  DrawerItem('Produits & Services', Icons.checkroom_outlined, (_) => const ProduitsScreen()),
   DrawerItem('Devis', Icons.description_outlined, (_) => const PlaceholderScreen(title: 'Devis')),
   DrawerItem('Paiements', Icons.credit_card_outlined, (_) => const PlaceholderScreen(title: 'Paiements')),
   DrawerItem('Dépenses', Icons.account_balance_wallet_outlined, (_) => const PlaceholderScreen(title: 'Dépenses')),
@@ -27,7 +31,7 @@ final List<DrawerItem> drawerItems = [
   DrawerItem('Employés', Icons.manage_accounts_outlined, (_) => const PlaceholderScreen(title: 'Employés')),
   DrawerItem('Rapports & Statistiques', Icons.bar_chart_rounded, (_) => const PlaceholderScreen(title: 'Rapports')),
   DrawerItem('Corbeille', Icons.delete_outline, (_) => const PlaceholderScreen(title: 'Corbeille')),
-  DrawerItem('Paramètres', Icons.settings_outlined, (_) => const PlaceholderScreen(title: 'Paramètres')),
+  DrawerItem('Paramètres', Icons.settings_outlined, (_) => const ParametresScreen()),
 ];
 
 class MainShell extends StatefulWidget {
@@ -48,10 +52,12 @@ class _MainShellState extends State<MainShell> {
     const _PlusGrid(),
   ];
 
+  void _selectTab(int i) => setState(() => _index = i);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const _AppDrawer(),
+      drawer: _AppDrawer(onSelectTab: _selectTab),
       appBar: AppBar(
         leadingWidth: 44,
         leading: Builder(
@@ -69,9 +75,18 @@ class _MainShellState extends State<MainShell> {
               child: Image.asset('assets/images/logo_icon.png'),
             ),
             const SizedBox(width: 10),
-            Text(BusinessInfo.nom, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
+            Expanded(
+              child: Text(BusinessInfo.nom, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.textPrimary), overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, size: 22),
+            tooltip: 'Rechercher',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+          ),
+        ],
       ),
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
@@ -90,7 +105,8 @@ class _MainShellState extends State<MainShell> {
 }
 
 class _AppDrawer extends StatelessWidget {
-  const _AppDrawer();
+  final void Function(int) onSelectTab;
+  const _AppDrawer({required this.onSelectTab});
 
   @override
   Widget build(BuildContext context) {
@@ -123,9 +139,10 @@ class _AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   const _DrawerSectionLabel('Menu principal'),
-                  _DrawerTile(icon: Icons.grid_view_rounded, label: 'Tableau de bord', onTap: () => Navigator.pop(context)),
-                  _DrawerTile(icon: Icons.shopping_bag_outlined, label: 'Commandes', onTap: () => Navigator.pop(context)),
-                  _DrawerTile(icon: Icons.people_outline, label: 'Clients', onTap: () => Navigator.pop(context)),
+                  _DrawerTile(icon: Icons.grid_view_rounded, label: 'Tableau de bord', onTap: () { Navigator.pop(context); onSelectTab(0); }),
+                  _DrawerTile(icon: Icons.shopping_bag_outlined, label: 'Commandes', onTap: () { Navigator.pop(context); onSelectTab(1); }),
+                  _DrawerTile(icon: Icons.people_outline, label: 'Clients', onTap: () { Navigator.pop(context); onSelectTab(2); }),
+                  _DrawerTile(icon: Icons.receipt_long_outlined, label: 'Factures', onTap: () { Navigator.pop(context); onSelectTab(3); }),
                   for (final item in drawerItems)
                     _DrawerTile(
                       icon: item.icon,
@@ -250,17 +267,17 @@ class _PlusTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
+          color: context.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.cardBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 20, color: AppColors.gold),
+            Icon(icon, size: 22, color: AppColors.gold),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
+            Text(label, style: TextStyle(fontSize: 14, color: context.textPrimary, fontWeight: FontWeight.w500)),
           ],
         ),
       ),

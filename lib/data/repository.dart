@@ -5,6 +5,10 @@ import 'id_generator.dart';
 import '../models/client.dart';
 import '../models/commande.dart';
 import '../models/facture.dart';
+import '../models/paiement.dart';
+import '../models/depense.dart';
+import '../models/utilisateur.dart';
+import '../models/modele.dart';
 
 /// Un élément dans la corbeille — garde le nom de la table d'origine et
 /// le contenu complet de la ligne, pour pouvoir la restaurer telle quelle.
@@ -213,4 +217,164 @@ String _todayFr() {
   const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   final d = DateTime.now();
   return '${d.day.toString().padLeft(2, '0')} ${mois[d.month - 1]} ${d.year}';
+}
+
+class PaiementRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Paiement>> all() async {
+    final db = await _db;
+    final rows = await db.query('paiements', orderBy: 'rowid DESC');
+    return rows.map((r) => Paiement.fromMap(r)).toList();
+  }
+
+  Future<Paiement> create({required String client, double montant = 0, String mode = 'Espèces', String reference = ''}) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'paiements');
+    final p = Paiement(id: id, client: client, montant: montant, mode: mode, reference: reference, date: _todayFr());
+    await db.insert('paiements', p.toMap());
+    return p;
+  }
+
+  Future<void> delete(Paiement p) async {
+    final db = await _db;
+    await _trash.moveToTrash('paiements', p.toMap());
+    await db.delete('paiements', where: 'id = ?', whereArgs: [p.id]);
+  }
+}
+
+class DepenseRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Depense>> all() async {
+    final db = await _db;
+    final rows = await db.query('depenses', orderBy: 'rowid DESC');
+    return rows.map((r) => Depense.fromMap(r)).toList();
+  }
+
+  Future<Depense> create({
+    required String categorie,
+    String fournisseur = '',
+    double montant = 0,
+    double? montantVerse,
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'depenses');
+    final verse = montantVerse ?? montant;
+    final d = Depense(
+      id: id, categorie: categorie, fournisseur: fournisseur,
+      montant: montant, montantVerse: verse, reliquat: (montant - verse) < 0 ? 0 : (montant - verse),
+      date: _todayFr(),
+    );
+    await db.insert('depenses', d.toMap());
+    return d;
+  }
+
+  Future<void> reglerReliquat(Depense d, double montantAjoute) async {
+    final db = await _db;
+    final nouveauVerse = d.montantVerse + montantAjoute;
+    final nouveauReliquat = (d.montant - nouveauVerse) < 0 ? 0.0 : (d.montant - nouveauVerse);
+    await db.update('depenses', {'montantVerse': nouveauVerse, 'reliquat': nouveauReliquat}, where: 'id = ?', whereArgs: [d.id]);
+  }
+
+  Future<void> delete(Depense d) async {
+    final db = await _db;
+    await _trash.moveToTrash('depenses', d.toMap());
+    await db.delete('depenses', where: 'id = ?', whereArgs: [d.id]);
+  }
+}
+
+class ModeleRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Modele>> all() async {
+    final db = await _db;
+    final rows = await db.query('modeles', orderBy: 'rowid DESC');
+    return rows.map((r) => Modele.fromMap(r)).toList();
+  }
+
+  Future<Modele> create({
+    required String nom,
+    String categorie = 'Autre',
+    double prix = 0,
+    int jours = 1,
+    String photo = '',
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'modeles');
+    final m = Modele(id: id, nom: nom, categorie: categorie, prix: prix, jours: jours, photo: photo);
+    await db.insert('modeles', m.toMap());
+    return m;
+  }
+
+  Future<void> delete(Modele m) async {
+    final db = await _db;
+    await _trash.moveToTrash('modeles', m.toMap());
+    await db.delete('modeles', where: 'id = ?', whereArgs: [m.id]);
+  }
+}
+
+class UserRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<List<Utilisateur>> all() async {
+    final db = await _db;
+    final rows = await db.query('utilisateurs', orderBy: 'rowid DESC');
+    return rows.map((r) => Utilisateur.fromMap(r)).toList();
+  }
+
+  Future<Utilisateur> create({required String nom, String role = 'Employé'}) async {
+    final db = await _db;
+    final id = 'U-${DateTime.now().millisecondsSinceEpoch}';
+    final user = Utilisateur(id: id, nom: nom, role: role);
+    await db.insert('utilisateurs', user.toMap());
+    return user;
+  }
+
+  Future<void> delete(String id) async {
+    final db = await _db;
+    await db.delete('utilisateurs', where: 'id = ?', whereArgs: [id]);
+  }
+}
+
+/// Gère les réglages de l'application : thème clair/sombre et
+/// informations d'entreprise personnalisées — persistés localement,
+/// une seule ligne dans la table `parametres`.
+class ParametresRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<Map<String, dynamic>> get() async {
+    final db = await _db;
+    final rows = await db.query('parametres', where: 'id = 1');
+    if (rows.isEmpty) return {'themeMode': 'dark', 'businessOverrideJson': '{}'};
+    return rows.first;
+  }
+
+  Future<String> getThemeMode() async {
+    final row = await get();
+    return row['themeMode'] as String? ?? 'dark';
+  }
+
+  Future<void> setThemeMode(String mode) async {
+    final db = await _db;
+    await db.update('parametres', {'themeMode': mode}, where: 'id = 1');
+  }
+
+  Future<Map<String, dynamic>> getBusinessOverride() async {
+    final row = await get();
+    final raw = row['businessOverrideJson'] as String? ?? '{}';
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> setBusinessOverride(Map<String, dynamic> value) async {
+    final db = await _db;
+    await db.update('parametres', {'businessOverrideJson': jsonEncode(value)}, where: 'id = 1');
+  }
 }

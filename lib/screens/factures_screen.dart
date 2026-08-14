@@ -4,6 +4,7 @@ import '../models/client.dart';
 import '../models/facture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
+import '../services/pdf_service.dart';
 
 class FacturesScreen extends StatefulWidget {
   const FacturesScreen({super.key});
@@ -93,8 +94,8 @@ class _FacturesScreenState extends State<FacturesScreen> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(f.client, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
-                                              Text('${f.id} · ${f.date}', style: const TextStyle(color: AppColors.textFaint, fontSize: 11)),
+                                              Text(f.client, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
+                                              Text('${f.id} · ${f.date}', style: TextStyle(color: context.textFaint, fontSize: 11)),
                                             ],
                                           ),
                                         ),
@@ -102,7 +103,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(fmtFcfa(f.montant), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 14)),
+                                    Text(fmtFcfa(f.montant), style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 14)),
                                   ],
                                 ),
                               );
@@ -153,30 +154,30 @@ class _FactureFormState extends State<_FactureForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Client *', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Client *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _client,
           dropdownColor: AppColors.surface,
           isExpanded: true,
-          hint: const Text('Choisir…', style: TextStyle(color: AppColors.textFaint)),
-          items: [for (final c in widget.clients) DropdownMenuItem(value: c.nom, child: Text(c.nom, style: const TextStyle(color: Colors.white)))],
+          hint: Text('Choisir…', style: TextStyle(color: context.textFaint)),
+          items: [for (final c in widget.clients) DropdownMenuItem(value: c.nom, child: Text(c.nom, style: TextStyle(color: context.textPrimary)))],
           onChanged: (v) => setState(() => _client = v),
         ),
         const SizedBox(height: 14),
-        const Text('Montant *', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Montant *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _montantCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
         const SizedBox(height: 14),
-        const Text('Statut', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Statut', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _statut,
           dropdownColor: AppColors.surface,
-          items: const [
-            DropdownMenuItem(value: 'Payée', child: Text('Payée', style: TextStyle(color: Colors.white))),
-            DropdownMenuItem(value: 'Partielle', child: Text('Partielle', style: TextStyle(color: Colors.white))),
-            DropdownMenuItem(value: 'Impayée', child: Text('Impayée', style: TextStyle(color: Colors.white))),
+          items: [
+            DropdownMenuItem(value: 'Payée', child: Text('Payée', style: TextStyle(color: context.textPrimary))),
+            DropdownMenuItem(value: 'Partielle', child: Text('Partielle', style: TextStyle(color: context.textPrimary))),
+            DropdownMenuItem(value: 'Impayée', child: Text('Impayée', style: TextStyle(color: context.textPrimary))),
           ],
           onChanged: (v) => setState(() => _statut = v ?? 'Payée'),
         ),
@@ -187,27 +188,51 @@ class _FactureFormState extends State<_FactureForm> {
   }
 }
 
-class _FactureDetail extends StatelessWidget {
+class _FactureDetail extends StatefulWidget {
   final Facture facture;
   final VoidCallback onDelete;
   const _FactureDetail({required this.facture, required this.onDelete});
 
   @override
+  State<_FactureDetail> createState() => _FactureDetailState();
+}
+
+class _FactureDetailState extends State<_FactureDetail> {
+  bool _generating = false;
+
+  Future<void> _action(Future<void> Function() task) async {
+    setState(() => _generating = true);
+    try {
+      await task();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Une erreur est survenue lors de la génération du document.")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final facture = widget.facture;
+    final montantPaye = facture.montant - facture.solde;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(facture.client, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+        Text(facture.client, style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
-                  Text(fmtFcfa(facture.montant), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                  const Text('MONTANT', style: TextStyle(color: AppColors.textFaint, fontSize: 9)),
+                  Text(fmtFcfa(facture.montant), style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700)),
+                  Text('MONTANT', style: TextStyle(color: context.textFaint, fontSize: 9)),
                 ]),
               ),
             ),
@@ -215,20 +240,66 @@ class _FactureDetail extends StatelessWidget {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
                   Text(fmtFcfa(facture.solde), style: const TextStyle(color: AppColors.rose, fontWeight: FontWeight.w700)),
-                  const Text('SOLDE RESTANT', style: TextStyle(color: AppColors.textFaint, fontSize: 9)),
+                  Text('SOLDE RESTANT', style: TextStyle(color: context.textFaint, fontSize: 9)),
                 ]),
               ),
             ),
           ],
         ),
         const SizedBox(height: 20),
+        if (_generating)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+          )
+        else ...[
+          Row(
+            children: [
+              Expanded(
+                child: GhostButton(
+                  label: 'Imprimer',
+                  onPressed: () => _action(() async {
+                    final bytes = await PdfService.buildFacturePdf(facture);
+                    await PdfService.printDocument(bytes);
+                  }),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GoldButton(
+                  label: 'Partager / PDF',
+                  onPressed: () => _action(() async {
+                    final bytes = await PdfService.buildFacturePdf(facture);
+                    await PdfService.shareOrDownload(bytes, 'Facture_${facture.id}.pdf');
+                  }),
+                ),
+              ),
+            ],
+          ),
+          if (montantPaye > 0) ...[
+            const SizedBox(height: 10),
+            GhostButton(
+              label: 'Générer un reçu de paiement',
+              onPressed: () => _action(() async {
+                final bytes = await PdfService.buildRecuPdf(
+                  client: facture.client,
+                  montant: montantPaye,
+                  date: facture.date,
+                  referenceFacture: facture.id,
+                );
+                await PdfService.shareOrDownload(bytes, 'Recu_${facture.id}.pdf');
+              }),
+            ),
+          ],
+        ],
+        const SizedBox(height: 16),
         TextButton(
-          onPressed: onDelete,
+          onPressed: widget.onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
-          child: const Text('Supprimer cette facture', style: TextStyle(fontWeight: FontWeight.w600)),
+          child: Text('Supprimer cette facture', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
       ],
     );

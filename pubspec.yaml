@@ -19,10 +19,16 @@ dependencies:
   # Polices Google (Cormorant Garamond + Inter, comme sur les autres versions)
   google_fonts: ^6.1.0
 
-  # Remarque : image_picker (prise de photo produit) sera ajouté quand on
-  # construira le module Produits & Services — retiré pour l'instant, un
-  # bug connu de l'outil "lint" d'Android plante dessus avec les toutes
-  # dernières versions d'AGP.
+  # Prise de photo (produits, première commande d'un client) — réactivé
+  # maintenant que la vérification "lint" est désactivée pour la
+  # compilation (voir android/app/build.gradle), ce qui évitait le
+  # plantage rencontré précédemment.
+  image_picker: ^1.0.4
+
+  # Génération de PDF (factures, reçus de paiement) + partage natif du
+  # téléphone (WhatsApp, email, Bluetooth...) et impression directe.
+  pdf: ^3.10.7
+  printing: ^5.12.0
 
 dev_dependencies:
   flutter_test:

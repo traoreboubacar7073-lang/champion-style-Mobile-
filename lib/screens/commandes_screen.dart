@@ -99,9 +99,9 @@ class _CommandesScreenState extends State<CommandesScreen> {
                           selected: _filtre == s,
                           onSelected: (_) => setState(() => _filtre = s),
                           selectedColor: AppColors.gold,
-                          backgroundColor: AppColors.surfaceLight,
-                          labelStyle: TextStyle(color: _filtre == s ? Colors.black : Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                          side: const BorderSide(color: AppColors.border),
+                          backgroundColor: context.cardBg,
+                          labelStyle: TextStyle(color: _filtre == s ? Colors.black : context.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                          side: BorderSide(color: context.cardBorder),
                         ),
                       ),
                   ],
@@ -130,8 +130,8 @@ class _CommandesScreenState extends State<CommandesScreen> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(c.client, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
-                                              Text('${c.id} · ${c.modele}', style: const TextStyle(color: AppColors.textFaint, fontSize: 11)),
+                                              Text(c.client, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
+                                              Text('${c.id} · ${c.modele}', style: TextStyle(color: context.textFaint, fontSize: 11)),
                                             ],
                                           ),
                                         ),
@@ -142,8 +142,8 @@ class _CommandesScreenState extends State<CommandesScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Livraison ${c.livraison}', style: const TextStyle(color: AppColors.textFaint, fontSize: 11)),
-                                        Text(fmtFcfa(c.montant), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
+                                        Text('Livraison ${c.livraison}', style: TextStyle(color: context.textFaint, fontSize: 11)),
+                                        Text(fmtFcfa(c.montant), style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 13)),
                                       ],
                                     ),
                                   ],
@@ -172,6 +172,7 @@ class _CommandeForm extends StatefulWidget {
 class _CommandeFormState extends State<_CommandeForm> {
   final _repo = CommandeRepository();
   final _modeleCtrl = TextEditingController();
+  final _couturierCtrl = TextEditingController();
   final _montantCtrl = TextEditingController();
   final _avanceCtrl = TextEditingController();
   String? _client;
@@ -198,14 +199,23 @@ class _CommandeFormState extends State<_CommandeForm> {
   Future<void> _save() async {
     if (_client == null || _modeleCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await _repo.create(
+    final montant = double.tryParse(_montantCtrl.text) ?? 0;
+    final avance = double.tryParse(_avanceCtrl.text) ?? 0;
+    final commande = await _repo.create(
       client: _client!,
       modele: _modeleCtrl.text.trim(),
+      couturier: _couturierCtrl.text.trim(),
       statut: _statut,
       livraison: _livraison != null ? _fmtDate(_livraison!) : _fmtDate(DateTime.now()),
-      montant: double.tryParse(_montantCtrl.text) ?? 0,
-      avance: double.tryParse(_avanceCtrl.text) ?? 0,
+      montant: montant,
+      avance: avance,
     );
+    // Dès qu'un premier versement est fait à la commande, la facture est
+    // générée automatiquement — le client, le solde restant et la date
+    // sont repris directement de la commande, sans ressaisie.
+    if (avance > 0) {
+      await FactureRepository().creerDepuisCommande(commande);
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -216,37 +226,41 @@ class _CommandeFormState extends State<_CommandeForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Client *', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Client *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _client,
           dropdownColor: AppColors.surface,
           isExpanded: true,
-          hint: const Text('Choisir…', style: TextStyle(color: AppColors.textFaint)),
-          items: [for (final c in widget.clients) DropdownMenuItem(value: c.nom, child: Text(c.nom, style: const TextStyle(color: Colors.white)))],
+          hint: Text('Choisir…', style: TextStyle(color: context.textFaint)),
+          items: [for (final c in widget.clients) DropdownMenuItem(value: c.nom, child: Text(c.nom, style: TextStyle(color: context.textPrimary)))],
           onChanged: (v) => setState(() => _client = v),
         ),
         const SizedBox(height: 14),
-        const Text('Modèle *', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Modèle *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _modeleCtrl, decoration: const InputDecoration(hintText: 'Ex : Robe Sirène Wax')),
         const SizedBox(height: 14),
-        const Text('Statut', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Couturier assigné', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        TextField(controller: _couturierCtrl, decoration: const InputDecoration(hintText: 'Nom du couturier (facultatif)')),
+        const SizedBox(height: 14),
+        Text('Statut', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _statut,
           dropdownColor: AppColors.surface,
-          items: [for (final s in statutsCommande) DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(color: Colors.white)))],
+          items: [for (final s in statutsCommande) DropdownMenuItem(value: s, child: Text(s, style: TextStyle(color: context.textPrimary)))],
           onChanged: (v) => setState(() => _statut = v ?? 'Nouvelle'),
         ),
         const SizedBox(height: 14),
-        const Text('Date de livraison', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Date de livraison', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         InkWell(
           onTap: _pickDate,
           child: InputDecorator(
-            decoration: const InputDecoration(suffixIcon: Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.textFaint)),
-            child: Text(_livraison != null ? _fmtDate(_livraison!) : 'Choisir une date', style: TextStyle(color: _livraison != null ? Colors.white : AppColors.textFaint)),
+            decoration: InputDecoration(suffixIcon: Icon(Icons.calendar_today_outlined, size: 16, color: context.textFaint)),
+            child: Text(_livraison != null ? _fmtDate(_livraison!) : 'Choisir une date', style: TextStyle(color: _livraison != null ? context.textPrimary : context.textFaint)),
           ),
         ),
         const SizedBox(height: 14),
@@ -256,7 +270,7 @@ class _CommandeFormState extends State<_CommandeForm> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Montant total', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  Text('Montant total', style: TextStyle(color: context.textMuted, fontSize: 12)),
                   const SizedBox(height: 6),
                   TextField(controller: _montantCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
                 ],
@@ -267,13 +281,20 @@ class _CommandeFormState extends State<_CommandeForm> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Avance versée', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  Text('Avance versée', style: TextStyle(color: context.textMuted, fontSize: 12)),
                   const SizedBox(height: 6),
                   TextField(controller: _avanceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
                 ],
               ),
             ),
           ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            "Si une avance est indiquée, la facture correspondante sera créée automatiquement.",
+            style: TextStyle(color: context.textFaint, fontSize: 11.5, fontStyle: FontStyle.italic),
+          ),
         ),
         const SizedBox(height: 20),
         GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
@@ -308,18 +329,29 @@ class _CommandeDetailState extends State<_CommandeDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(c.client, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-        Text(c.modele, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        Text(c.client, style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
+        Text(c.modele, style: TextStyle(color: context.textMuted, fontSize: 13)),
+        if (c.couturier.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Icon(Icons.content_cut, size: 13, color: context.textFaint),
+                const SizedBox(width: 5),
+                Text(c.couturier, style: TextStyle(color: context.textFaint, fontSize: 12.5)),
+              ],
+            ),
+          ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
-                  Text(fmtFcfa(c.montant), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                  const Text('MONTANT', style: TextStyle(color: AppColors.textFaint, fontSize: 9)),
+                  Text(fmtFcfa(c.montant), style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700)),
+                  Text('MONTANT', style: TextStyle(color: context.textFaint, fontSize: 9)),
                 ]),
               ),
             ),
@@ -327,17 +359,17 @@ class _CommandeDetailState extends State<_CommandeDetail> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12)),
                 child: Column(children: [
-                  Text(fmtFcfa(c.avance), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700)),
-                  const Text('AVANCE VERSÉE', style: TextStyle(color: AppColors.textFaint, fontSize: 9)),
+                  Text(fmtFcfa(c.avance), style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700)),
+                  Text('AVANCE VERSÉE', style: TextStyle(color: context.textFaint, fontSize: 9)),
                 ]),
               ),
             ),
           ],
         ),
         const SizedBox(height: 18),
-        const Text('Changer le statut', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Changer le statut', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8, runSpacing: 8,
@@ -348,21 +380,21 @@ class _CommandeDetailState extends State<_CommandeDetail> {
                 selected: _statut == s,
                 onSelected: (_) { setState(() => _statut = s); widget.onStatutChange(s); },
                 selectedColor: AppColors.gold,
-                backgroundColor: AppColors.surfaceLight,
-                labelStyle: TextStyle(color: _statut == s ? Colors.black : Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                side: const BorderSide(color: AppColors.border),
+                backgroundColor: context.cardBg,
+                labelStyle: TextStyle(color: _statut == s ? Colors.black : context.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                side: BorderSide(color: context.cardBorder),
               ),
           ],
         ),
         const SizedBox(height: 8),
-        Text('Livraison prévue : ${c.livraison}', style: const TextStyle(color: AppColors.textFaint, fontSize: 12)),
+        Text('Livraison prévue : ${c.livraison}', style: TextStyle(color: context.textFaint, fontSize: 12)),
         const SizedBox(height: 18),
         GoldButton(label: 'Facturer cette commande', onPressed: widget.onFacturer),
         const SizedBox(height: 10),
         TextButton(
           onPressed: widget.onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
-          child: const Text('Supprimer cette commande', style: TextStyle(fontWeight: FontWeight.w600)),
+          child: Text('Supprimer cette commande', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
       ],
     );

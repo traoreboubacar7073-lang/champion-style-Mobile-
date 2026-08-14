@@ -112,10 +112,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(c.nom, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
+                                          Text(c.nom, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500, fontSize: 15), overflow: TextOverflow.ellipsis),
                                           Text(
                                             c.tel.isEmpty ? 'Sans téléphone' : c.tel,
-                                            style: const TextStyle(color: AppColors.textFaint, fontSize: 12),
+                                            style: TextStyle(color: context.textFaint, fontSize: 12),
                                           ),
                                         ],
                                       ),
@@ -124,7 +124,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(999)),
-                                        child: Text(c.sexe, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                                        child: Text(c.sexe, style: TextStyle(color: context.textMuted, fontSize: 10)),
                                       ),
                                   ],
                                 ),
@@ -160,6 +160,13 @@ class _ClientFormState extends State<_ClientForm> {
   final Map<String, TextEditingController> _mesureCtrls = {};
   bool _saving = false;
 
+  // Première commande (facultative), uniquement à la création d'un client.
+  final _cmdModeleCtrl = TextEditingController();
+  final _cmdCouturierCtrl = TextEditingController();
+  final _cmdMontantCtrl = TextEditingController();
+  final _cmdAvanceCtrl = TextEditingController();
+  String? _cmdPhoto;
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +190,10 @@ class _ClientFormState extends State<_ClientForm> {
     _nomCtrl.dispose();
     _telCtrl.dispose();
     _villeCtrl.dispose();
+    _cmdModeleCtrl.dispose();
+    _cmdCouturierCtrl.dispose();
+    _cmdMontantCtrl.dispose();
+    _cmdAvanceCtrl.dispose();
     for (final ctrl in _mesureCtrls.values) {
       ctrl.dispose();
     }
@@ -211,13 +222,36 @@ class _ClientFormState extends State<_ClientForm> {
       );
       await _repo.update(updated);
     } else {
-      await _repo.create(
+      final nouveauClient = await _repo.create(
         nom: _nomCtrl.text.trim(),
         tel: _telCtrl.text.trim(),
         ville: _villeCtrl.text.trim(),
         sexe: _sexe ?? '',
         mesures: mesures,
       );
+
+      // Si une première commande a été renseignée, on la crée directement
+      // (et sa facture automatiquement si une avance a été versée) — pas
+      // besoin de ressaisir le client dans la section Commandes ensuite.
+      if (_cmdModeleCtrl.text.trim().isNotEmpty) {
+        final montant = double.tryParse(_cmdMontantCtrl.text) ?? 0;
+        final avance = double.tryParse(_cmdAvanceCtrl.text) ?? 0;
+        const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+        final now = DateTime.now();
+        final livraison = '${now.day.toString().padLeft(2, '0')} ${mois[now.month - 1]} ${now.year}';
+        final commande = await CommandeRepository().create(
+          client: nouveauClient.nom,
+          modele: _cmdModeleCtrl.text.trim(),
+          couturier: _cmdCouturierCtrl.text.trim(),
+          livraison: livraison,
+          montant: montant,
+          avance: avance,
+          photo: _cmdPhoto ?? '',
+        );
+        if (avance > 0) {
+          await FactureRepository().creerDepuisCommande(commande);
+        }
+      }
     }
     if (!mounted) return;
     setState(() => _saving = false);
@@ -231,35 +265,35 @@ class _ClientFormState extends State<_ClientForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Nom complet *', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Nom complet *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _nomCtrl, decoration: const InputDecoration(hintText: 'Ex : Awa Sangaré')),
         const SizedBox(height: 14),
-        const Text('Téléphone', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Téléphone', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _telCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(hintText: '+223 …')),
         const SizedBox(height: 14),
-        const Text('Ville / Quartier', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Ville / Quartier', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _villeCtrl, decoration: const InputDecoration(hintText: 'Bamako, …')),
         const SizedBox(height: 14),
-        const Text('Sexe', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text('Sexe', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _sexe,
           dropdownColor: AppColors.surface,
           decoration: const InputDecoration(),
-          hint: const Text('Choisir…', style: TextStyle(color: AppColors.textFaint)),
-          items: const [
-            DropdownMenuItem(value: 'Femme', child: Text('Femme', style: TextStyle(color: Colors.white))),
-            DropdownMenuItem(value: 'Homme', child: Text('Homme', style: TextStyle(color: Colors.white))),
+          hint: Text('Choisir…', style: TextStyle(color: context.textFaint)),
+          items: [
+            DropdownMenuItem(value: 'Femme', child: Text('Femme', style: TextStyle(color: context.textPrimary))),
+            DropdownMenuItem(value: 'Homme', child: Text('Homme', style: TextStyle(color: context.textPrimary))),
           ],
           onChanged: (v) => setState(() => _sexe = v),
         ),
         if (grille.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('MESURES ${_sexe?.toUpperCase() ?? ''} (CM) — FACULTATIF',
-              style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+              style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -274,6 +308,50 @@ class _ClientFormState extends State<_ClientForm> {
                     decoration: InputDecoration(hintText: field.label),
                   ),
                 ),
+            ],
+          ),
+        ],
+        if (widget.existing == null) ...[
+          const SizedBox(height: 20),
+          Text('PREMIÈRE COMMANDE — FACULTATIF',
+              style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+          const SizedBox(height: 4),
+          Text('Si renseigné, la commande (et sa facture si une avance est versée) sera créée automatiquement.',
+              style: TextStyle(color: context.textFaint, fontSize: 11.5)),
+          const SizedBox(height: 10),
+          PhotoPickerField(initialBase64: _cmdPhoto, onChanged: (v) => setState(() => _cmdPhoto = v)),
+          const SizedBox(height: 10),
+          Text('Modèle', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          TextField(controller: _cmdModeleCtrl, decoration: const InputDecoration(hintText: 'Ex : Robe Sirène Wax')),
+          const SizedBox(height: 12),
+          Text('Couturier assigné', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          TextField(controller: _cmdCouturierCtrl, decoration: const InputDecoration(hintText: 'Nom du couturier (facultatif)')),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Montant total', style: TextStyle(color: context.textMuted, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(controller: _cmdMontantCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Avance versée', style: TextStyle(color: context.textMuted, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(controller: _cmdAvanceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -307,15 +385,15 @@ class _ClientDetail extends StatelessWidget {
         Row(
           children: [
             if (client.tel.isNotEmpty) ...[
-              const Icon(Icons.phone_outlined, size: 13, color: AppColors.textFaint),
+              Icon(Icons.phone_outlined, size: 13, color: context.textFaint),
               const SizedBox(width: 4),
-              Text(client.tel, style: const TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              Text(client.tel, style: TextStyle(color: context.textFaint, fontSize: 12)),
               const SizedBox(width: 14),
             ],
             if (client.ville.isNotEmpty) ...[
-              const Icon(Icons.location_on_outlined, size: 13, color: AppColors.textFaint),
+              Icon(Icons.location_on_outlined, size: 13, color: context.textFaint),
               const SizedBox(width: 4),
-              Text(client.ville, style: const TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              Text(client.ville, style: TextStyle(color: context.textFaint, fontSize: 12)),
             ],
           ],
         ),
@@ -323,10 +401,10 @@ class _ClientDetail extends StatelessWidget {
         GhostButton(label: 'Modifier ce client', onPressed: onEdit),
         const SizedBox(height: 18),
         Text('FICHE DE MESURES (CM)${client.sexe.isNotEmpty ? ' — ${client.sexe.toUpperCase()}' : ''}',
-            style: const TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+            style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
         const SizedBox(height: 10),
         if (mesuresRenseignees.isEmpty)
-          const Text('Aucune mesure enregistrée pour ce client.', style: TextStyle(color: AppColors.textFaint, fontSize: 13))
+          Text('Aucune mesure enregistrée pour ce client.', style: TextStyle(color: context.textFaint, fontSize: 13))
         else
           Wrap(
             spacing: 8,
@@ -336,13 +414,13 @@ class _ClientDetail extends StatelessWidget {
                 Container(
                   width: (MediaQuery.of(context).size.width - 40 - 16) / 3,
                   padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     children: [
-                      Text('${entry.value}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                      Text('${entry.value}', style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
                       const SizedBox(height: 2),
                       Text(MesuresGrilles.labels[entry.key] ?? entry.key,
-                          style: const TextStyle(color: AppColors.textFaint, fontSize: 9)),
+                          style: TextStyle(color: context.textFaint, fontSize: 9)),
                     ],
                   ),
                 ),
@@ -352,7 +430,7 @@ class _ClientDetail extends StatelessWidget {
         TextButton(
           onPressed: onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
-          child: const Text('Supprimer ce client', style: TextStyle(fontWeight: FontWeight.w600)),
+          child: Text('Supprimer ce client', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
       ],
     );
