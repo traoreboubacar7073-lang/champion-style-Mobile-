@@ -29,21 +29,36 @@ class _ChampionsStyleAppState extends State<ChampionsStyleApp> {
   Future<void> _loadThemePreference() async {
     final saved = await ParametresRepository().getThemeMode();
     themeModeNotifier.value = saved == 'light' ? ThemeMode.light : ThemeMode.dark;
+    final savedPolice = await ParametresRepository().getPoliceStyle();
+    policeNotifier.value = savedPolice;
+    final savedTaille = await ParametresRepository().getTailleTexte();
+    tailleTexteNotifier.value = taillesTexte[savedTaille] ?? 1.0;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Toute l'application se redessine automatiquement dès que le thème
-    // choisi dans Paramètres change, sans avoir besoin de redémarrer.
+    // Toute l'application se redessine automatiquement dès que le thème,
+    // la police ou la taille de texte choisis dans Paramètres changent,
+    // sans avoir besoin de redémarrer.
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeModeNotifier,
       builder: (context, mode, _) {
-        return MaterialApp(
-          title: 'Champions Style',
-          debugShowCheckedModeBanner: false,
-          theme: mode == ThemeMode.light ? AppTheme.lightTheme : AppTheme.theme,
-          navigatorObservers: [routeObserver],
-          home: const MainShell(),
+        return ValueListenableBuilder<String>(
+          valueListenable: policeNotifier,
+          builder: (context, police, __) {
+            return ValueListenableBuilder<double>(
+              valueListenable: tailleTexteNotifier,
+              builder: (context, scale, ___) {
+                return MaterialApp(
+                  title: 'Champions Style',
+                  debugShowCheckedModeBanner: false,
+                  theme: AppTheme.build(dark: mode == ThemeMode.dark, police: police, scale: scale),
+                  navigatorObservers: [routeObserver],
+                  home: const MainShell(),
+                );
+              },
+            );
+          },
         );
       },
     );

@@ -69,13 +69,62 @@ class StatutColors {
 /// écoute cette valeur pour se redessiner instantanément au changement.
 final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.dark);
 
+/// Style de police choisi (clé parmi FontPresets.all) et échelle du texte
+/// (1.0 = normale) — mêmes principes que le thème : modifiables depuis
+/// Paramètres, appliqués instantanément partout dans l'application.
+final ValueNotifier<String> policeNotifier = ValueNotifier('elegant');
+final ValueNotifier<double> tailleTexteNotifier = ValueNotifier(1.0);
+
+class FontPreset {
+  final String label;
+  final TextStyle Function() heading;
+  final TextStyle Function() body;
+  const FontPreset({required this.label, required this.heading, required this.body});
+}
+
+/// Les différents styles de police proposés dans Paramètres — chacun
+/// combine une police pour les titres et une police pour le texte
+/// courant, dans le même esprit que sur la version web mobile.
+class FontPresets {
+  FontPresets._();
+
+  static final Map<String, FontPreset> all = {
+    'elegant': FontPreset(
+      label: 'Élégant (par défaut)',
+      heading: () => GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w700),
+      body: () => GoogleFonts.inter(),
+    ),
+    'moderne': FontPreset(
+      label: 'Moderne',
+      heading: () => GoogleFonts.poppins(fontWeight: FontWeight.w700),
+      body: () => GoogleFonts.poppins(),
+    ),
+    'classique': FontPreset(
+      label: 'Classique',
+      heading: () => GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700),
+      body: () => GoogleFonts.merriweather(),
+    ),
+    'epure': FontPreset(
+      label: 'Épuré',
+      heading: () => GoogleFonts.roboto(fontWeight: FontWeight.w700),
+      body: () => GoogleFonts.roboto(),
+    ),
+  };
+}
+
+const Map<String, double> taillesTexte = {
+  'petite': 0.92,
+  'normale': 1.0,
+  'grande': 1.14,
+};
+
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get theme => _build(dark: true);
-  static ThemeData get lightTheme => _build(dark: false);
+  static ThemeData get theme => build(dark: true, police: 'elegant', scale: 1.0);
+  static ThemeData get lightTheme => build(dark: false, police: 'elegant', scale: 1.0);
 
-  static ThemeData _build({required bool dark}) {
+  static ThemeData build({required bool dark, required String police, required double scale}) {
     final bg = dark ? AppColors.background : AppColors.backgroundLight;
     final surfaceLight = dark ? AppColors.surfaceLight : AppColors.surfaceLightModeSubtle;
     final border = dark ? AppColors.border : AppColors.borderLight;
@@ -85,8 +134,10 @@ class AppTheme {
 
     // Tailles de texte volontairement généreuses, pour une lecture
     // confortable sur mobile — plus grandes que la première version.
-    final headingFont = GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w700);
-    final bodyFont = GoogleFonts.inter();
+    // L'échelle "scale" vient des Paramètres (Petite/Normale/Grande).
+    final preset = FontPresets.all[police] ?? FontPresets.all['elegant']!;
+    final headingFont = preset.heading();
+    final bodyFont = preset.body();
 
     return ThemeData(
       useMaterial3: true,
@@ -97,17 +148,17 @@ class AppTheme {
           ? const ColorScheme.dark(primary: AppColors.gold, secondary: AppColors.goldLight, surface: AppColors.surface, error: AppColors.rose)
           : ColorScheme.light(primary: AppColors.goldDark, secondary: AppColors.gold, surface: AppColors.surfaceLightModeSubtle, error: AppColors.rose),
       textTheme: TextTheme(
-        displayLarge: headingFont.copyWith(fontSize: 34, color: textPrimary),
-        headlineMedium: headingFont.copyWith(fontSize: 25, color: textPrimary),
-        titleLarge: headingFont.copyWith(fontSize: 20, color: textPrimary),
-        bodyLarge: bodyFont.copyWith(fontSize: 16, color: textPrimary),
-        bodyMedium: bodyFont.copyWith(fontSize: 14, color: textMuted),
-        bodySmall: bodyFont.copyWith(fontSize: 12, color: textFaint),
+        displayLarge: headingFont.copyWith(fontSize: 34 * scale, color: textPrimary),
+        headlineMedium: headingFont.copyWith(fontSize: 25 * scale, color: textPrimary),
+        titleLarge: headingFont.copyWith(fontSize: 20 * scale, color: textPrimary),
+        bodyLarge: bodyFont.copyWith(fontSize: 16 * scale, color: textPrimary),
+        bodyMedium: bodyFont.copyWith(fontSize: 14 * scale, color: textMuted),
+        bodySmall: bodyFont.copyWith(fontSize: 12 * scale, color: textFaint),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         elevation: 0,
-        titleTextStyle: headingFont.copyWith(fontSize: 19, color: textPrimary),
+        titleTextStyle: headingFont.copyWith(fontSize: 19 * scale, color: textPrimary),
         iconTheme: IconThemeData(color: textPrimary),
       ),
       // Remarque : le thème "Card" natif de Flutter n'est pas utilisé ici —
@@ -121,8 +172,8 @@ class AppTheme {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gold, width: 1.4)),
-        hintStyle: bodyFont.copyWith(color: textFaint, fontSize: 15),
-        labelStyle: bodyFont.copyWith(color: textMuted, fontSize: 14),
+        hintStyle: bodyFont.copyWith(color: textFaint, fontSize: 15 * scale),
+        labelStyle: bodyFont.copyWith(color: textMuted, fontSize: 14 * scale),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: bg,
@@ -130,8 +181,8 @@ class AppTheme {
         unselectedItemColor: textFaint,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        selectedLabelStyle: TextStyle(fontSize: 11 * scale, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 11 * scale),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -139,7 +190,7 @@ class AppTheme {
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(vertical: 17),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: bodyFont.copyWith(fontWeight: FontWeight.w600, fontSize: 16),
+          textStyle: bodyFont.copyWith(fontWeight: FontWeight.w600, fontSize: 16 * scale),
         ),
       ),
       dividerTheme: DividerThemeData(color: border, thickness: 1),

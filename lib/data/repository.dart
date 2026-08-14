@@ -511,6 +511,26 @@ class ParametresRepository {
     await db.update('parametres', {'themeMode': mode}, where: 'id = 1');
   }
 
+  Future<String> getPoliceStyle() async {
+    final row = await get();
+    return row['policeStyle'] as String? ?? 'elegant';
+  }
+
+  Future<void> setPoliceStyle(String style) async {
+    final db = await _db;
+    await db.update('parametres', {'policeStyle': style}, where: 'id = 1');
+  }
+
+  Future<String> getTailleTexte() async {
+    final row = await get();
+    return row['tailleTexte'] as String? ?? 'normale';
+  }
+
+  Future<void> setTailleTexte(String taille) async {
+    final db = await _db;
+    await db.update('parametres', {'tailleTexte': taille}, where: 'id = 1');
+  }
+
   Future<Map<String, dynamic>> getBusinessOverride() async {
     final row = await get();
     final raw = row['businessOverrideJson'] as String? ?? '{}';

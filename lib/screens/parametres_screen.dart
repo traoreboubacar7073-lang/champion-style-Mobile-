@@ -38,6 +38,16 @@ class _ParametresScreenState extends State<ParametresScreen> {
     await _paramRepo.setThemeMode(mode == ThemeMode.light ? 'light' : 'dark');
   }
 
+  Future<void> _setPolice(String key) async {
+    policeNotifier.value = key;
+    await _paramRepo.setPoliceStyle(key);
+  }
+
+  Future<void> _setTaille(String key) async {
+    tailleTexteNotifier.value = taillesTexte[key] ?? 1.0;
+    await _paramRepo.setTailleTexte(key);
+  }
+
   void _openAddUser() async {
     final nomCtrl = TextEditingController();
     String role = 'Employé';
@@ -120,6 +130,82 @@ class _ParametresScreenState extends State<ParametresScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('POLICE D\'ÉCRITURE', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+          const SizedBox(height: 10),
+          AppCard(
+            child: ValueListenableBuilder<String>(
+              valueListenable: policeNotifier,
+              builder: (context, policeActuelle, _) => Column(
+                children: [
+                  for (final entry in FontPresets.all.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        onTap: () => _setPolice(entry.key),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          decoration: BoxDecoration(
+                            color: policeActuelle == entry.key ? AppColors.gold.withOpacity(0.13) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: policeActuelle == entry.key ? AppColors.gold : context.cardBorder),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(entry.value.label, style: entry.value.heading().copyWith(fontSize: 15, color: policeActuelle == entry.key ? AppColors.gold : context.textPrimary)),
+                              if (policeActuelle == entry.key) const Icon(Icons.check_circle, color: AppColors.gold, size: 18),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('TAILLE DU TEXTE', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+          const SizedBox(height: 10),
+          AppCard(
+            child: ValueListenableBuilder<double>(
+              valueListenable: tailleTexteNotifier,
+              builder: (context, scaleActuelle, _) => Row(
+                children: [
+                  for (final entry in taillesTexte.entries)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: entry.key == taillesTexte.keys.last ? 0 : 8),
+                        child: InkWell(
+                          onTap: () => _setTaille(entry.key),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            decoration: BoxDecoration(
+                              color: scaleActuelle == entry.value ? AppColors.gold.withOpacity(0.15) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: scaleActuelle == entry.value ? AppColors.gold : context.cardBorder),
+                            ),
+                            child: Column(
+                              children: [
+                                Text('A', style: TextStyle(fontSize: 14 + (entry.value - 0.92) * 20, fontWeight: FontWeight.w700, color: scaleActuelle == entry.value ? AppColors.gold : context.textMuted)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  entry.key == 'petite' ? 'Petite' : (entry.key == 'normale' ? 'Normale' : 'Grande'),
+                                  style: TextStyle(fontSize: 11, color: scaleActuelle == entry.value ? AppColors.gold : context.textMuted, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),

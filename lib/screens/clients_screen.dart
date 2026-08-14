@@ -174,6 +174,7 @@ class _ClientFormState extends State<_ClientForm> {
 
   // Première commande (facultative), uniquement à la création d'un client.
   String? _cmdModele;
+  DateTime? _cmdLivraison;
   String? _cmdCouturier;
   final _cmdMontantCtrl = TextEditingController();
   final _cmdAvanceCtrl = TextEditingController();
@@ -247,8 +248,8 @@ class _ClientFormState extends State<_ClientForm> {
         final montant = double.tryParse(_cmdMontantCtrl.text) ?? 0;
         final avance = double.tryParse(_cmdAvanceCtrl.text) ?? 0;
         const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-        final now = DateTime.now();
-        final livraison = '${now.day.toString().padLeft(2, '0')} ${mois[now.month - 1]} ${now.year}';
+        final dateChoisie = _cmdLivraison ?? DateTime.now();
+        final livraison = '${dateChoisie.day.toString().padLeft(2, '0')} ${mois[dateChoisie.month - 1]} ${dateChoisie.year}';
         final commande = await CommandeRepository().create(
           client: nouveauClient.nom,
           modele: _cmdModele!.trim(),
@@ -340,6 +341,30 @@ class _ClientFormState extends State<_ClientForm> {
             hintText: 'Choisir un modèle du catalogue…',
             customHintText: 'Ex : Robe apportée par la cliente',
             onChanged: (v) => setState(() => _cmdModele = v),
+          ),
+          const SizedBox(height: 12),
+          Text('Date de livraison', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: () async {
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _cmdLivraison ?? now,
+                firstDate: now.subtract(const Duration(days: 365)),
+                lastDate: DateTime(now.year + 2),
+              );
+              if (picked != null) setState(() => _cmdLivraison = picked);
+            },
+            child: InputDecorator(
+              decoration: InputDecoration(suffixIcon: Icon(Icons.calendar_today_outlined, size: 16, color: context.textFaint)),
+              child: Text(
+                _cmdLivraison != null
+                    ? '${_cmdLivraison!.day.toString().padLeft(2, '0')}/${_cmdLivraison!.month.toString().padLeft(2, '0')}/${_cmdLivraison!.year}'
+                    : "Aujourd'hui (par défaut) — appuyer pour changer",
+                style: TextStyle(color: _cmdLivraison != null ? context.textPrimary : context.textFaint, fontSize: 13.5),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Text('Couturier assigné', style: TextStyle(color: context.textMuted, fontSize: 12)),

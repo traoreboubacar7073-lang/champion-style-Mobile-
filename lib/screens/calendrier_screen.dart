@@ -55,6 +55,14 @@ class _CalendrierScreenState extends State<CalendrierScreen> {
     }).toList();
   }
 
+  /// Une livraison dont la commande est passée au statut "Livrée" est
+  /// considérée comme validée — elle s'affiche en vert sur le calendrier
+  /// au lieu de la couleur "à venir", pour distinguer en un coup d'œil ce
+  /// qui reste à faire de ce qui est déjà terminé.
+  bool _livraisonValideeLe(DateTime jour, List<Commande> livraisons) {
+    return livraisons.isNotEmpty && livraisons.every((c) => c.statut == 'Livrée');
+  }
+
   List<Commande> _essayagesLe(DateTime jour) {
     return _commandes.where((c) {
       if (c.dateEssayage.isEmpty) return false;
@@ -86,7 +94,7 @@ class _CalendrierScreenState extends State<CalendrierScreen> {
                   decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(10)),
                   child: Row(
                     children: [
-                      const Icon(Icons.local_shipping_outlined, size: 16, color: AppColors.gold),
+                      Icon(Icons.local_shipping_outlined, size: 16, color: c.statut == 'Livrée' ? AppColors.deepGreen : AppColors.gold),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -207,7 +215,11 @@ class _CalendrierScreenState extends State<CalendrierScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (livraisons.isNotEmpty) Container(width: 5, height: 5, margin: const EdgeInsets.symmetric(horizontal: 1), decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle)),
+                                      if (livraisons.isNotEmpty)
+                                        Container(
+                                          width: 5, height: 5, margin: const EdgeInsets.symmetric(horizontal: 1),
+                                          decoration: BoxDecoration(color: _livraisonValideeLe(jour, livraisons) ? AppColors.deepGreen : AppColors.gold, shape: BoxShape.circle),
+                                        ),
                                       if (essayages.isNotEmpty) Container(width: 5, height: 5, margin: const EdgeInsets.symmetric(horizontal: 1), decoration: const BoxDecoration(color: AppColors.purple, shape: BoxShape.circle)),
                                     ],
                                   ),
@@ -223,8 +235,12 @@ class _CalendrierScreenState extends State<CalendrierScreen> {
                     children: [
                       Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle)),
                       const SizedBox(width: 6),
-                      Text('Livraison', style: TextStyle(color: context.textFaint, fontSize: 12)),
-                      const SizedBox(width: 16),
+                      Text('À livrer', style: TextStyle(color: context.textFaint, fontSize: 12)),
+                      const SizedBox(width: 14),
+                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.deepGreen, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text('Livrée', style: TextStyle(color: context.textFaint, fontSize: 12)),
+                      const SizedBox(width: 14),
                       Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.purple, shape: BoxShape.circle)),
                       const SizedBox(width: 6),
                       Text('Essayage', style: TextStyle(color: context.textFaint, fontSize: 12)),
