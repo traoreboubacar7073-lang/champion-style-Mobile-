@@ -259,6 +259,7 @@ class _ClientFormState extends State<_ClientForm> {
           photo: _cmdPhoto ?? '',
         );
         if (avance > 0) {
+          await PaiementRepository().create(client: nouveauClient.nom, montant: avance, mode: 'Espèces', reference: commande.id);
           await FactureRepository().creerDepuisCommande(commande);
         }
       }

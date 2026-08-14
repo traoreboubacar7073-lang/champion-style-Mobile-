@@ -168,12 +168,25 @@ class _CommandesScreenState extends State<CommandesScreen> {
   }
 }
 
+const List<String> _moisAbbrCmd = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+DateTime? _parseFrDateCmd(String s) {
+  final parts = s.trim().split(RegExp(r'\s+'));
+  if (parts.length != 3) return null;
+  final day = int.tryParse(parts[0]);
+  final monthIdx = _moisAbbrCmd.indexOf(parts[1]);
+  final year = int.tryParse(parts[2]);
+  if (day == null || monthIdx == -1 || year == null) return null;
+  return DateTime(year, monthIdx + 1, day);
+}
+
 class _CommandeForm extends StatefulWidget {
   final List<Client> clients;
   final List<Employe> employes;
   final List<Modele> modeles;
+  final Commande? existing;
   final VoidCallback onSaved;
-  const _CommandeForm({required this.clients, required this.employes, required this.modeles, required this.onSaved});
+  const _CommandeForm({required this.clients, required this.employes, required this.modeles, this.existing, required this.onSaved});
 
   @override
   State<_CommandeForm> createState() => _CommandeFormState();
@@ -188,22 +201,56 @@ class _CommandeFormState extends State<_CommandeForm> {
   String? _client;
   String _statut = 'Nouvelle';
   DateTime? _livraison;
+  DateTime? _essayage;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.existing;
+    if (c != null) {
+      _client = c.client;
+      _modele = c.modele;
+      _couturier = c.couturier.isEmpty ? null : c.couturier;
+      _statut = c.statut;
+      _livraison = _parseFrDateCmd(c.livraison);
+      _essayage = c.dateEssayage.isEmpty ? null : _parseFrDateCmd(c.dateEssayage);
+      _montantCtrl.text = c.montant == c.montant.roundToDouble() ? c.montant.toStringAsFixed(0) : c.montant.toString();
+      _avanceCtrl.text = c.avance == c.avance.roundToDouble() ? c.avance.toStringAsFixed(0) : c.avance.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _montantCtrl.dispose();
+    _avanceCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now.subtract(const Duration(days: 1)),
+      initialDate: _livraison ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
       lastDate: DateTime(now.year + 2),
     );
     if (picked != null) setState(() => _livraison = picked);
   }
 
+  Future<void> _pickEssayage() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _essayage ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked != null) setState(() => _essayage = picked);
+  }
+
   String _fmtDate(DateTime d) {
-    const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-    return '${d.day.toString().padLeft(2, '0')} ${mois[d.month - 1]} ${d.year}';
+    return '${d.day.toString().padLeft(2, '0')} ${_moisAbbrCmd[d.month - 1]} ${d.year}';
   }
 
   Future<void> _save() async {
@@ -211,20 +258,43 @@ class _CommandeFormState extends State<_CommandeForm> {
     setState(() => _saving = true);
     final montant = double.tryParse(_montantCtrl.text) ?? 0;
     final avance = double.tryParse(_avanceCtrl.text) ?? 0;
-    final commande = await _repo.create(
-      client: _client!,
-      modele: _modele!.trim(),
-      couturier: _couturier ?? '',
-      statut: _statut,
-      livraison: _livraison != null ? _fmtDate(_livraison!) : _fmtDate(DateTime.now()),
-      montant: montant,
-      avance: avance,
-    );
-    // Dès qu'un premier versement est fait à la commande, la facture est
-    // générée automatiquement — le client, le solde restant et la date
-    // sont repris directement de la commande, sans ressaisie.
-    if (avance > 0) {
-      await FactureRepository().creerDepuisCommande(commande);
+    final livraisonTexte = _livraison != null ? _fmtDate(_livraison!) : _fmtDate(DateTime.now());
+    final essayageTexte = _essayage != null ? _fmtDate(_essayage!) : '';
+
+    if (widget.existing != null) {
+      final ancienneAvance = widget.existing!.avance;
+      final updated = widget.existing!.copyWith(
+        client: _client!, modele: _modele!.trim(), couturier: _couturier ?? '',
+        statut: _statut, livraison: livraisonTexte, dateEssayage: essayageTexte, montant: montant, avance: avance,
+      );
+      await _repo.update(updated);
+      // Si l'avance a augmenté par rapport à ce qu'elle était, la différence
+      // est un vrai nouveau versement du client — on l'enregistre comme
+      // paiement réel, pour que "Total versé" et les rapports restent exacts.
+      if (avance > ancienneAvance) {
+        await PaiementRepository().create(
+          client: _client!, montant: avance - ancienneAvance, mode: 'Espèces', reference: widget.existing!.id,
+        );
+      }
+    } else {
+      final commande = await _repo.create(
+        client: _client!,
+        modele: _modele!.trim(),
+        couturier: _couturier ?? '',
+        statut: _statut,
+        livraison: livraisonTexte,
+        dateEssayage: essayageTexte,
+        montant: montant,
+        avance: avance,
+      );
+      // Une avance versée à la création est un vrai paiement du client —
+      // on l'enregistre comme tel, pour que le total réellement versé et
+      // les rapports financiers restent exacts, et la facture correspondante
+      // est générée automatiquement dans la foulée.
+      if (avance > 0) {
+        await PaiementRepository().create(client: _client!, montant: avance, mode: 'Espèces', reference: commande.id);
+        await FactureRepository().creerDepuisCommande(commande);
+      }
     }
     if (!mounted) return;
     setState(() => _saving = false);
@@ -291,6 +361,16 @@ class _CommandeFormState extends State<_CommandeForm> {
           child: InputDecorator(
             decoration: InputDecoration(suffixIcon: Icon(Icons.calendar_today_outlined, size: 16, color: context.textFaint)),
             child: Text(_livraison != null ? _fmtDate(_livraison!) : 'Choisir une date', style: TextStyle(color: _livraison != null ? context.textPrimary : context.textFaint)),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text('Date d\'essayage (facultatif)', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: _pickEssayage,
+          child: InputDecorator(
+            decoration: InputDecoration(suffixIcon: Icon(Icons.event_outlined, size: 16, color: context.textFaint)),
+            child: Text(_essayage != null ? _fmtDate(_essayage!) : 'Choisir une date', style: TextStyle(color: _essayage != null ? context.textPrimary : context.textFaint)),
           ),
         ),
         const SizedBox(height: 14),
