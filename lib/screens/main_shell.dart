@@ -9,7 +9,14 @@ import 'factures_screen.dart';
 import 'parametres_screen.dart';
 import 'search_screen.dart';
 import 'produits_screen.dart';
-import 'placeholder_screen.dart';
+import 'stock_screen.dart';
+import 'rapports_screen.dart';
+import 'devis_screen.dart';
+import 'paiements_screen.dart';
+import 'depenses_screen.dart';
+import 'fournisseurs_screen.dart';
+import 'employes_screen.dart';
+import 'corbeille_screen.dart';
 
 class DrawerItem {
   final String label;
@@ -26,14 +33,14 @@ class DrawerItem {
 /// distinctes d'un coup d'œil.
 final List<DrawerItem> drawerItems = [
   DrawerItem('Produits & Services', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
-  DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const PlaceholderScreen(title: 'Devis')),
-  DrawerItem('Paiements', Icons.credit_card_outlined, AppColors.deepGreen, (_) => const PlaceholderScreen(title: 'Paiements')),
-  DrawerItem('Dépenses', Icons.account_balance_wallet_outlined, AppColors.rose, (_) => const PlaceholderScreen(title: 'Dépenses')),
-  DrawerItem('Fournisseurs', Icons.local_shipping_outlined, AppColors.pink, (_) => const PlaceholderScreen(title: 'Fournisseurs')),
-  DrawerItem('Stock & Matières', Icons.inventory_2_outlined, AppColors.blue, (_) => const PlaceholderScreen(title: 'Stock & Matières')),
-  DrawerItem('Employés', Icons.manage_accounts_outlined, AppColors.purple, (_) => const PlaceholderScreen(title: 'Employés')),
-  DrawerItem('Rapports & Statistiques', Icons.bar_chart_rounded, AppColors.gold, (_) => const PlaceholderScreen(title: 'Rapports')),
-  DrawerItem('Corbeille', Icons.delete_outline, AppColors.textFaint, (_) => const PlaceholderScreen(title: 'Corbeille')),
+  DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const DevisScreen()),
+  DrawerItem('Paiements', Icons.credit_card_outlined, AppColors.deepGreen, (_) => const PaiementsScreen()),
+  DrawerItem('Dépenses', Icons.account_balance_wallet_outlined, AppColors.rose, (_) => const DepensesScreen()),
+  DrawerItem('Fournisseurs', Icons.local_shipping_outlined, AppColors.pink, (_) => const FournisseursScreen()),
+  DrawerItem('Stock & Matières', Icons.inventory_2_outlined, AppColors.blue, (_) => const StockScreen()),
+  DrawerItem('Employés', Icons.manage_accounts_outlined, AppColors.purple, (_) => const EmployesScreen()),
+  DrawerItem('Rapports & Statistiques', Icons.bar_chart_rounded, AppColors.gold, (_) => const RapportsScreen()),
+  DrawerItem('Corbeille', Icons.delete_outline, AppColors.textFaint, (_) => const CorbeilleScreen()),
   DrawerItem('Paramètres', Icons.settings_outlined, AppColors.textFaint, (_) => const ParametresScreen()),
 ];
 

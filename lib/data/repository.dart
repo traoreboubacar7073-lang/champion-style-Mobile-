@@ -9,6 +9,10 @@ import '../models/paiement.dart';
 import '../models/depense.dart';
 import '../models/utilisateur.dart';
 import '../models/modele.dart';
+import '../models/stock.dart';
+import '../models/devis.dart';
+import '../models/fournisseur.dart';
+import '../models/employe.dart';
 
 /// Un élément dans la corbeille — garde le nom de la table d'origine et
 /// le contenu complet de la ligne, pour pouvoir la restaurer telle quelle.
@@ -286,6 +290,43 @@ class DepenseRepository {
   }
 }
 
+class StockRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<StockItem>> all() async {
+    final db = await _db;
+    final rows = await db.query('stock', orderBy: 'rowid DESC');
+    return rows.map((r) => StockItem.fromMap(r)).toList();
+  }
+
+  Future<StockItem> create({
+    required String nom,
+    String type = 'Tissu',
+    double qte = 0,
+    String unite = 'unités',
+    double seuil = 0,
+    String fournisseur = '',
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'stock');
+    final item = StockItem(id: id, nom: nom, type: type, qte: qte, unite: unite, seuil: seuil, fournisseur: fournisseur);
+    await db.insert('stock', item.toMap());
+    return item;
+  }
+
+  Future<void> updateQte(String id, double nouvelleQte) async {
+    final db = await _db;
+    await db.update('stock', {'qte': nouvelleQte}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> delete(StockItem item) async {
+    final db = await _db;
+    await _trash.moveToTrash('stock', item.toMap());
+    await db.delete('stock', where: 'id = ?', whereArgs: [item.id]);
+  }
+}
+
 class ModeleRepository {
   Future<Database> get _db async => AppDatabase.instance.database;
   final _trash = TrashRepository();
@@ -314,6 +355,113 @@ class ModeleRepository {
     final db = await _db;
     await _trash.moveToTrash('modeles', m.toMap());
     await db.delete('modeles', where: 'id = ?', whereArgs: [m.id]);
+  }
+}
+
+class DevisRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Devis>> all() async {
+    final db = await _db;
+    final rows = await db.query('devis', orderBy: 'rowid DESC');
+    return rows.map((r) => Devis.fromMap(r)).toList();
+  }
+
+  Future<Devis> create({required String client, double montant = 0, String statut = 'En attente'}) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'devis');
+    final d = Devis(id: id, client: client, montant: montant, statut: statut, date: _todayFr());
+    await db.insert('devis', d.toMap());
+    return d;
+  }
+
+  Future<void> delete(Devis d) async {
+    final db = await _db;
+    await _trash.moveToTrash('devis', d.toMap());
+    await db.delete('devis', where: 'id = ?', whereArgs: [d.id]);
+  }
+}
+
+class FournisseurRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Fournisseur>> all() async {
+    final db = await _db;
+    final rows = await db.query('fournisseurs', orderBy: 'rowid DESC');
+    return rows.map((r) => Fournisseur.fromMap(r)).toList();
+  }
+
+  Future<Fournisseur> create({required String nom, String contact = '', String ville = ''}) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'fournisseurs');
+    final f = Fournisseur(id: id, nom: nom, contact: contact, ville: ville);
+    await db.insert('fournisseurs', f.toMap());
+    return f;
+  }
+
+  Future<void> delete(Fournisseur f) async {
+    final db = await _db;
+    await _trash.moveToTrash('fournisseurs', f.toMap());
+    await db.delete('fournisseurs', where: 'id = ?', whereArgs: [f.id]);
+  }
+}
+
+class EmployeRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<Employe>> all() async {
+    final db = await _db;
+    final rows = await db.query('employes', orderBy: 'rowid DESC');
+    return rows.map((r) => Employe.fromMap(r)).toList();
+  }
+
+  Future<Employe> create({
+    required String nom,
+    String poste = '',
+    String specialite = '',
+    String frequencePaiement = 'Mensuel',
+    double tauxPaiement = 0,
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'employes');
+    final e = Employe(
+      id: id, nom: nom, poste: poste, specialite: specialite,
+      frequencePaiement: frequencePaiement, tauxPaiement: tauxPaiement, embauche: DateTime.now().year.toString(),
+    );
+    await db.insert('employes', e.toMap());
+    return e;
+  }
+
+  Future<void> delete(Employe e) async {
+    final db = await _db;
+    await _trash.moveToTrash('employes', e.toMap());
+    await db.delete('employes', where: 'id = ?', whereArgs: [e.id]);
+  }
+}
+
+class PaiementEmployeRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+
+  Future<List<PaiementEmploye>> all() async {
+    final db = await _db;
+    final rows = await db.query('paiements_employes', orderBy: 'rowid DESC');
+    return rows.map((r) => PaiementEmploye.fromMap(r)).toList();
+  }
+
+  Future<PaiementEmploye> create({
+    required String employe,
+    double montant = 0,
+    String mode = 'Espèces',
+    String periode = '',
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'paiements_employes');
+    final p = PaiementEmploye(id: id, employe: employe, montant: montant, mode: mode, periode: periode, date: _todayFr());
+    await db.insert('paiements_employes', p.toMap());
+    return p;
   }
 }
 

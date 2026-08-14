@@ -160,14 +160,20 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64),
-      child: Column(
-        children: [
-          Icon(icon, size: 36, color: context.textFaint),
-          const SizedBox(height: 12),
-          Text(text, style: TextStyle(color: context.textFaint, fontSize: 14), textAlign: TextAlign.center),
-        ],
+    // Center() s'étire pour occuper tout l'espace disponible puis centre
+    // son contenu à l'intérieur — indépendamment de l'alignement de la
+    // colonne parente (qui, sur la plupart des écrans, aligne à gauche).
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 36, color: context.textFaint),
+            const SizedBox(height: 12),
+            Text(text, style: TextStyle(color: context.textFaint, fontSize: 14), textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
