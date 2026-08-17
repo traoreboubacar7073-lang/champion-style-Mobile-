@@ -501,12 +501,17 @@ class ArticleBoutiqueRepository {
     return rows.map((r) => ArticleBoutique.fromMap(r)).toList();
   }
 
-  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0}) async {
+  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0, String photo = '', String taille = ''}) async {
     final db = await _db;
     final id = await IdGenerator.next(db, 'articles_boutique');
-    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix);
+    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix, photo: photo, taille: taille);
     await db.insert('articles_boutique', a.toMap());
     return a;
+  }
+
+  Future<void> update(ArticleBoutique a) async {
+    final db = await _db;
+    await db.update('articles_boutique', a.toMap(), where: 'id = ?', whereArgs: [a.id]);
   }
 
   Future<void> delete(ArticleBoutique a) async {
@@ -533,6 +538,7 @@ class VenteBoutiqueRepository {
   Future<VenteBoutique> create({
     required String article,
     required String categorie,
+    String taille = '',
     double prixUnitaire = 0,
     double quantite = 1,
     String mode = 'Espèces',
@@ -540,7 +546,7 @@ class VenteBoutiqueRepository {
     final db = await _db;
     final id = await IdGenerator.next(db, 'ventes_boutique');
     final montant = prixUnitaire * quantite;
-    final v = VenteBoutique(id: id, article: article, categorie: categorie, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
+    final v = VenteBoutique(id: id, article: article, categorie: categorie, taille: taille, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
     await db.insert('ventes_boutique', v.toMap());
     await PaiementRepository().create(client: 'Vente boutique', montant: montant, mode: mode, reference: v.id);
     return v;

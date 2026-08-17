@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../data/repository.dart';
 import '../models/boutique.dart';
 import '../theme/app_theme.dart';
@@ -10,6 +11,7 @@ const List<String> categoriesBoutique = [
   'Bijoux', 'Chaussures', 'Accessoire', 'Autre',
 ];
 const List<String> modesPaiementBoutique = ['Espèces', 'Orange Money', 'Moov Money', 'Virement bancaire', 'Mobicash'];
+const List<String> taillesPretAPorter = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 
 const List<String> _moisAbbrBoutique = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
@@ -114,11 +116,11 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
     );
   }
 
-  void _ouvrirAjoutArticle() async {
+  void _ouvrirAjoutArticle({ArticleBoutique? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouvel article de boutique',
-      child: _ArticleForm(categoriesDisponibles: _categoriesDisponibles, onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier l\'article' : 'Nouvel article de boutique',
+      child: _ArticleForm(categoriesDisponibles: _categoriesDisponibles, existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -213,14 +215,27 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                     ..._articles.map((a) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: AppCard(
+                            onTap: () => _ouvrirAjoutArticle(existing: a),
                             child: Row(
                               children: [
+                                if (a.photo.isNotEmpty)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(base64Decode(a.photo), width: 40, height: 40, fit: BoxFit.cover),
+                                  )
+                                else
+                                  Container(
+                                    width: 40, height: 40,
+                                    decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(8)),
+                                    child: Icon(Icons.storefront_outlined, size: 18, color: context.textFaint),
+                                  ),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(a.nom, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500, fontSize: 14)),
-                                      Text(a.categorie, style: TextStyle(color: context.textFaint, fontSize: 11.5)),
+                                      Text(a.taille.isNotEmpty ? '${a.categorie} · Taille ${a.taille}' : a.categorie, style: TextStyle(color: context.textFaint, fontSize: 11.5)),
                                     ],
                                   ),
                                 ),
@@ -303,8 +318,9 @@ class _MiniTotalBoutique extends StatelessWidget {
 
 class _ArticleForm extends StatefulWidget {
   final List<String> categoriesDisponibles;
+  final ArticleBoutique? existing;
   final VoidCallback onSaved;
-  const _ArticleForm({required this.categoriesDisponibles, required this.onSaved});
+  const _ArticleForm({required this.categoriesDisponibles, this.existing, required this.onSaved});
 
   @override
   State<_ArticleForm> createState() => _ArticleFormState();
@@ -314,12 +330,41 @@ class _ArticleFormState extends State<_ArticleForm> {
   final _nomCtrl = TextEditingController();
   final _prixCtrl = TextEditingController();
   String? _categorie;
+  String? _taille;
+  String? _photo;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.existing;
+    if (a != null) {
+      _nomCtrl.text = a.nom;
+      _prixCtrl.text = a.prix == a.prix.roundToDouble() ? a.prix.toStringAsFixed(0) : a.prix.toString();
+      _categorie = a.categorie;
+      _taille = a.taille.isEmpty ? null : a.taille;
+      _photo = a.photo.isEmpty ? null : a.photo;
+    }
+  }
 
   Future<void> _save() async {
     if (_nomCtrl.text.trim().isEmpty || (_categorie ?? '').trim().isEmpty) return;
     setState(() => _saving = true);
-    await ArticleBoutiqueRepository().create(nom: _nomCtrl.text.trim(), categorie: _categorie!.trim(), prix: double.tryParse(_prixCtrl.text) ?? 0);
+    if (widget.existing != null) {
+      final updated = ArticleBoutique(
+        id: widget.existing!.id,
+        nom: _nomCtrl.text.trim(), categorie: _categorie!.trim(),
+        prix: double.tryParse(_prixCtrl.text) ?? 0,
+        photo: _photo ?? '', taille: _taille ?? '',
+      );
+      await ArticleBoutiqueRepository().update(updated);
+    } else {
+      await ArticleBoutiqueRepository().create(
+        nom: _nomCtrl.text.trim(), categorie: _categorie!.trim(),
+        prix: double.tryParse(_prixCtrl.text) ?? 0,
+        photo: _photo ?? '', taille: _taille ?? '',
+      );
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -327,9 +372,14 @@ class _ArticleFormState extends State<_ArticleForm> {
 
   @override
   Widget build(BuildContext context) {
+    final estPretAPorter = _categorie == 'Prêt-à-porter';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text('Photo', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        PhotoPickerField(initialBase64: _photo, onChanged: (v) => setState(() => _photo = v)),
+        const SizedBox(height: 14),
         Text('Nom de l\'article *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _nomCtrl, decoration: const InputDecoration(hintText: 'Ex : Montre Casio noire')),
@@ -343,12 +393,24 @@ class _ArticleFormState extends State<_ArticleForm> {
           customHintText: 'Nom de la nouvelle catégorie',
           onChanged: (v) => setState(() => _categorie = v),
         ),
+        if (estPretAPorter) ...[
+          const SizedBox(height: 14),
+          Text('Taille', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: _taille,
+            dropdownColor: AppColors.surface,
+            hint: Text('Choisir une taille…', style: TextStyle(color: context.textFaint)),
+            items: [for (final t in taillesPretAPorter) DropdownMenuItem(value: t, child: Text(t, style: TextStyle(color: context.textPrimary)))],
+            onChanged: (v) => setState(() => _taille = v),
+          ),
+        ],
         const SizedBox(height: 14),
         Text('Prix de vente (FCFA)', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _prixCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
         const SizedBox(height: 20),
-        GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
+        GoldButton(label: _saving ? 'Enregistrement…' : (widget.existing != null ? 'Enregistrer les modifications' : 'Enregistrer'), onPressed: _saving ? () {} : _save),
       ],
     );
   }
@@ -367,6 +429,8 @@ class _VenteForm extends StatefulWidget {
 class _VenteFormState extends State<_VenteForm> {
   String? _article;
   String? _categorie;
+  String? _taille;
+  bool _depuisCatalogue = false;
   final _prixCtrl = TextEditingController(text: '0');
   final _quantiteCtrl = TextEditingController(text: '1');
   String _mode = 'Espèces';
@@ -375,12 +439,18 @@ class _VenteFormState extends State<_VenteForm> {
   void _selectionnerArticleCatalogue(String? nom) {
     setState(() {
       _article = nom;
-      if (nom != null) {
-        final trouve = widget.articles.where((a) => a.nom == nom);
-        if (trouve.isNotEmpty) {
-          _categorie = trouve.first.categorie;
-          _prixCtrl.text = trouve.first.prix.toStringAsFixed(0);
-        }
+      final trouve = nom == null ? <ArticleBoutique>[] : widget.articles.where((a) => a.nom == nom).toList();
+      if (trouve.isNotEmpty) {
+        _depuisCatalogue = true;
+        _categorie = trouve.first.categorie;
+        _taille = trouve.first.taille.isEmpty ? null : trouve.first.taille;
+        _prixCtrl.text = trouve.first.prix.toStringAsFixed(0);
+      } else {
+        // Article tapé librement (pas dans le catalogue) — la catégorie
+        // (et la taille, le cas échéant) redevient à choisir à la main.
+        _depuisCatalogue = false;
+        _categorie = null;
+        _taille = null;
       }
     });
   }
@@ -391,7 +461,10 @@ class _VenteFormState extends State<_VenteForm> {
     final quantite = double.tryParse(_quantiteCtrl.text) ?? 1;
     if (nom.isEmpty || (_categorie ?? '').trim().isEmpty || prix <= 0 || quantite <= 0) return;
     setState(() => _saving = true);
-    await VenteBoutiqueRepository().create(article: nom, categorie: _categorie!.trim(), prixUnitaire: prix, quantite: quantite, mode: _mode);
+    await VenteBoutiqueRepository().create(
+      article: nom, categorie: _categorie!.trim(), taille: _taille ?? '',
+      prixUnitaire: prix, quantite: quantite, mode: _mode,
+    );
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -400,6 +473,7 @@ class _VenteFormState extends State<_VenteForm> {
   @override
   Widget build(BuildContext context) {
     final montant = (double.tryParse(_prixCtrl.text) ?? 0) * (double.tryParse(_quantiteCtrl.text) ?? 0);
+    final estPretAPorter = _categorie == 'Prêt-à-porter';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -413,15 +487,54 @@ class _VenteFormState extends State<_VenteForm> {
           onChanged: _selectionnerArticleCatalogue,
         ),
         const SizedBox(height: 14),
-        Text('Catégorie *', style: TextStyle(color: context.textMuted, fontSize: 12)),
-        const SizedBox(height: 6),
-        CatalogPickerField(
-          options: widget.categoriesDisponibles,
-          initialValue: _categorie,
-          hintText: 'Choisir une catégorie…',
-          customHintText: 'Nom de la nouvelle catégorie',
-          onChanged: (v) => setState(() => _categorie = v),
-        ),
+        if (_depuisCatalogue) ...[
+          // L'article vient du catalogue : sa catégorie (et sa taille, le
+          // cas échéant) sont déjà connues — juste affichées, pas la peine
+          // de les resaisir.
+          Text('Catégorie', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+            child: Text(_categorie ?? '', style: TextStyle(color: context.textPrimary, fontSize: 13.5)),
+          ),
+          if (_taille != null) ...[
+            const SizedBox(height: 14),
+            Text('Taille', style: TextStyle(color: context.textMuted, fontSize: 12)),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+              child: Text(_taille!, style: TextStyle(color: context.textPrimary, fontSize: 13.5)),
+            ),
+          ],
+        ] else ...[
+          // Article libre (pas dans le catalogue) — la catégorie doit être
+          // précisée à la main, et une taille peut être choisie si besoin.
+          Text('Catégorie *', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          CatalogPickerField(
+            options: widget.categoriesDisponibles,
+            initialValue: _categorie,
+            hintText: 'Choisir une catégorie…',
+            customHintText: 'Nom de la nouvelle catégorie',
+            onChanged: (v) => setState(() => _categorie = v),
+          ),
+          if (estPretAPorter) ...[
+            const SizedBox(height: 14),
+            Text('Taille', style: TextStyle(color: context.textMuted, fontSize: 12)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _taille,
+              dropdownColor: AppColors.surface,
+              hint: Text('Choisir une taille…', style: TextStyle(color: context.textFaint)),
+              items: [for (final t in taillesPretAPorter) DropdownMenuItem(value: t, child: Text(t, style: TextStyle(color: context.textPrimary)))],
+              onChanged: (v) => setState(() => _taille = v),
+            ),
+          ],
+        ],
         const SizedBox(height: 14),
         Row(
           children: [

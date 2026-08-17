@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(dbPath, 'champions_style.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -50,6 +50,11 @@ class AppDatabase {
     if (oldVersion < 4) {
       await db.execute("ALTER TABLE parametres ADD COLUMN pinCode TEXT");
     }
+    if (oldVersion < 5) {
+      await db.execute("ALTER TABLE articles_boutique ADD COLUMN photo TEXT DEFAULT ''");
+      await db.execute("ALTER TABLE articles_boutique ADD COLUMN taille TEXT DEFAULT ''");
+      await db.execute("ALTER TABLE ventes_boutique ADD COLUMN taille TEXT DEFAULT ''");
+    }
   }
 
   /// Articles vendus directement en boutique (tissus, montres, parfums,
@@ -61,7 +66,9 @@ class AppDatabase {
         id TEXT PRIMARY KEY,
         nom TEXT NOT NULL,
         categorie TEXT NOT NULL,
-        prix REAL DEFAULT 0
+        prix REAL DEFAULT 0,
+        photo TEXT DEFAULT '',
+        taille TEXT DEFAULT ''
       )
     ''');
     await db.execute('''
@@ -69,6 +76,7 @@ class AppDatabase {
         id TEXT PRIMARY KEY,
         article TEXT NOT NULL,
         categorie TEXT NOT NULL,
+        taille TEXT DEFAULT '',
         prixUnitaire REAL DEFAULT 0,
         quantite REAL DEFAULT 1,
         montant REAL DEFAULT 0,
