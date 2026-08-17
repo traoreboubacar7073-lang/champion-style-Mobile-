@@ -21,10 +21,11 @@ def keystoreProperties = [
 
 android {
     namespace = "com.championsstyle.champions_style"
-    // Fixé explicitement à 36 (au lieu de suivre la valeur par défaut de
-    // Flutter) — certaines dépendances (via file_picker) exigent
-    // désormais au moins cette version des API Android pour compiler.
-    compileSdk = 36
+    // Utilise la même valeur partagée que toutes les extensions (voir
+    // .github/workflows/build_apk.yml, qui force cette valeur commune à
+    // 36 avant la compilation) — une seule source de vérité, plus besoin
+    // de la fixer séparément ici.
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
