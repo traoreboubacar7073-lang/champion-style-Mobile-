@@ -112,7 +112,7 @@ class _CommandesScreenState extends State<CommandesScreen> {
     await showAppBottomSheet(
       context,
       title: 'Prévenir le client',
-      child: _MessageWhatsappForm(telephone: telephone, messageInitial: messageParDefaut),
+      child: WhatsappMessageSheet(telephone: telephone, messageInitial: messageParDefaut, introTexte: 'La commande est marquée "Prête" — un message peut être envoyé au client sur WhatsApp'),
     );
   }
 
@@ -541,67 +541,6 @@ class _CommandeDetailState extends State<_CommandeDetail> {
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
           child: Text('Supprimer cette commande', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
-      ],
-    );
-  }
-}
-
-/// Aperçu du message avant envoi — modifiable, puis ouvre WhatsApp direct
-/// sur la conversation du client avec ce texte déjà rempli.
-class _MessageWhatsappForm extends StatefulWidget {
-  final String telephone;
-  final String messageInitial;
-  const _MessageWhatsappForm({required this.telephone, required this.messageInitial});
-
-  @override
-  State<_MessageWhatsappForm> createState() => _MessageWhatsappFormState();
-}
-
-class _MessageWhatsappFormState extends State<_MessageWhatsappForm> {
-  late final TextEditingController _messageCtrl;
-  bool _envoi = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _messageCtrl = TextEditingController(text: widget.messageInitial);
-  }
-
-  @override
-  void dispose() {
-    _messageCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _ouvrir() async {
-    setState(() => _envoi = true);
-    final ok = await WhatsappService.ouvrirConversation(numero: widget.telephone, message: _messageCtrl.text.trim());
-    if (!mounted) return;
-    setState(() => _envoi = false);
-    if (ok) {
-      Navigator.of(context).pop();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Impossible d'ouvrir WhatsApp — vérifiez que l'application est installée.")),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('La commande est marquée "Prête" — un message peut être envoyé au client sur WhatsApp (${widget.telephone}).',
-            style: TextStyle(color: context.textFaint, fontSize: 12.5)),
-        const SizedBox(height: 14),
-        Text('Message', style: TextStyle(color: context.textMuted, fontSize: 12)),
-        const SizedBox(height: 6),
-        TextField(controller: _messageCtrl, maxLines: 5, decoration: const InputDecoration()),
-        const SizedBox(height: 18),
-        GoldButton(label: _envoi ? 'Ouverture…' : 'Ouvrir WhatsApp', icon: Icons.chat_bubble_outline, onPressed: _envoi ? () {} : _ouvrir),
-        const SizedBox(height: 10),
-        GhostButton(label: 'Ne pas envoyer maintenant', onPressed: () => Navigator.of(context).pop()),
       ],
     );
   }

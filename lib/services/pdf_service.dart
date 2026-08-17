@@ -149,6 +149,7 @@ class PdfService {
     required double montant,
     required String date,
     String? referenceFacture,
+    double? soldeRestant,
   }) async {
     final doc = pw.Document();
     final logo = await _loadLogo();
@@ -181,6 +182,17 @@ class PdfService {
                     pw.Text('Montant reçu', style: pw.TextStyle(fontSize: 10, color: _grey)),
                     pw.SizedBox(height: 4),
                     pw.Text(fmtFcfa(montant), style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: _gold)),
+                    if (soldeRestant != null) ...[
+                      pw.SizedBox(height: 12),
+                      pw.Divider(color: _grey, thickness: 0.5),
+                      pw.SizedBox(height: 10),
+                      _ligneMontant(
+                        'Solde restant à payer',
+                        fmtFcfa(soldeRestant),
+                        bold: true,
+                        color: soldeRestant > 0 ? _rose : _green,
+                      ),
+                    ],
                   ],
                 ),
               ),

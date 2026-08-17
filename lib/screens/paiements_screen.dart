@@ -2,11 +2,23 @@ import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../models/client.dart';
 import '../models/paiement.dart';
+import '../models/facture.dart';
 import '../theme/app_theme.dart';
+import '../theme/business_info.dart';
 import '../widgets/shared_widgets.dart';
 import '../services/pdf_service.dart';
+import '../services/whatsapp_service.dart';
 
 const List<String> modesPaiement = ['Espèces', 'Orange Money', 'Moov Money', 'Virement bancaire', 'Mobicash', 'Autre'];
+
+/// Retrouve le solde restant de la facture liée à un paiement (via sa
+/// référence) — permet d'afficher "Solde restant" sur le reçu généré,
+/// quand un tel lien existe entre les deux.
+double? _trouverSoldeParReference(String reference, List<Facture> factures) {
+  if (reference.isEmpty) return null;
+  final trouvees = factures.where((f) => f.id == reference);
+  return trouvees.isEmpty ? null : trouvees.first.solde;
+}
 
 class PaiementsScreen extends StatefulWidget {
   const PaiementsScreen({super.key});
@@ -20,6 +32,7 @@ class _PaiementsScreenState extends State<PaiementsScreen> {
   final _clientRepo = ClientRepository();
   List<Paiement> _paiements = [];
   List<Client> _clients = [];
+  List<Facture> _factures = [];
   bool _loading = true;
 
   @override
@@ -31,13 +44,20 @@ class _PaiementsScreenState extends State<PaiementsScreen> {
   Future<void> _load() async {
     final paiements = await _repo.all();
     final clients = await _clientRepo.all();
+    final factures = await FactureRepository().all();
     if (!mounted) return;
     setState(() {
       _paiements = paiements;
       _clients = clients;
+      _factures = factures;
       _loading = false;
     });
   }
+
+  /// Retrouve le solde restant de la facture liée à un paiement (via sa
+  /// référence) — permet d'afficher "Solde restant" sur le reçu généré,
+  /// quand un tel lien existe.
+  double? _soldeLie(Paiement p) => _trouverSoldeParReference(p.reference, _factures);
 
   void _openAdd() async {
     final result = await showAppBottomSheet<bool>(
@@ -57,13 +77,38 @@ class _PaiementsScreenState extends State<PaiementsScreen> {
 
   Future<void> _genererRecu(Paiement p) async {
     try {
-      final bytes = await PdfService.buildRecuPdf(client: p.client, montant: p.montant, date: p.date, referenceFacture: p.reference.isEmpty ? null : p.reference);
+      final bytes = await PdfService.buildRecuPdf(client: p.client, montant: p.montant, date: p.date, referenceFacture: p.reference.isEmpty ? null : p.reference, soldeRestant: _soldeLie(p));
       await PdfService.shareOrDownload(bytes, 'Recu_${p.id}.pdf');
+      if (!mounted) return;
+      _proposerMessageWhatsapp(p);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible de générer le reçu.')));
       }
     }
+  }
+
+  /// Après avoir partagé le reçu, propose d'envoyer directement un message
+  /// WhatsApp au client (numéro retrouvé dans sa fiche) — même principe
+  /// que pour prévenir qu'une commande est prête.
+  void _proposerMessageWhatsapp(Paiement p) {
+    final trouve = _clients.where((c) => c.nom == p.client);
+    final telephone = trouve.isEmpty ? '' : trouve.first.tel;
+    if (!WhatsappService.numeroValide(telephone)) return;
+
+    final message = 'Bonjour ${p.client}, voici la confirmation de votre versement de ${fmtFcfa(p.montant)}'
+        '${p.reference.isNotEmpty ? ' (réf. ${p.reference})' : ''} chez ${BusinessInfo.nom}. '
+        'Merci de votre confiance 🙏';
+
+    showAppBottomSheet(
+      context,
+      title: 'Prévenir le client',
+      child: WhatsappMessageSheet(
+        telephone: telephone,
+        messageInitial: message,
+        introTexte: 'Un message peut être envoyé au client sur WhatsApp pour accompagner le reçu',
+      ),
+    );
   }
 
   @override
@@ -149,7 +194,12 @@ class _PaiementFormState extends State<_PaiementForm> {
     );
     if (_genererRecuApres) {
       try {
-        final bytes = await PdfService.buildRecuPdf(client: p.client, montant: p.montant, date: p.date, referenceFacture: p.reference.isEmpty ? null : p.reference);
+        final factures = await FactureRepository().all();
+        final bytes = await PdfService.buildRecuPdf(
+          client: p.client, montant: p.montant, date: p.date,
+          referenceFacture: p.reference.isEmpty ? null : p.reference,
+          soldeRestant: _trouverSoldeParReference(p.reference, factures),
+        );
         await PdfService.shareOrDownload(bytes, 'Recu_${p.id}.pdf');
       } catch (_) {
         // Le paiement reste enregistré même si le partage du reçu échoue.

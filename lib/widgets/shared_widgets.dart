@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
+import '../services/whatsapp_service.dart';
 
 /// Formate un montant en francs CFA (ex : "45 000 FCFA") — même format
 /// que sur les versions ordinateur et web mobile. Écrit à la main plutôt
@@ -203,6 +204,69 @@ Future<bool> confirmDelete(BuildContext context, {required String nom, String? t
     ),
   );
   return result ?? false;
+}
+
+/// Fenêtre d'envoi WhatsApp réutilisable — message pré-rédigé (modifiable)
+/// puis ouverture directe de la conversation du client. Utilisée à la
+/// fois pour prévenir qu'une commande est prête et pour accompagner un
+/// reçu de paiement.
+class WhatsappMessageSheet extends StatefulWidget {
+  final String telephone;
+  final String messageInitial;
+  final String introTexte;
+  const WhatsappMessageSheet({super.key, required this.telephone, required this.messageInitial, required this.introTexte});
+
+  @override
+  State<WhatsappMessageSheet> createState() => _WhatsappMessageSheetState();
+}
+
+class _WhatsappMessageSheetState extends State<WhatsappMessageSheet> {
+  late final TextEditingController _messageCtrl;
+  bool _envoi = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageCtrl = TextEditingController(text: widget.messageInitial);
+  }
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ouvrir() async {
+    setState(() => _envoi = true);
+    final ok = await WhatsappService.ouvrirConversation(numero: widget.telephone, message: _messageCtrl.text.trim());
+    if (!mounted) return;
+    setState(() => _envoi = false);
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir WhatsApp — vérifiez que l'application est installée.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${widget.introTexte} (${widget.telephone}).', style: TextStyle(color: context.textFaint, fontSize: 12.5)),
+        const SizedBox(height: 14),
+        Text('Message', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        TextField(controller: _messageCtrl, maxLines: 5, decoration: const InputDecoration()),
+        const SizedBox(height: 18),
+        GoldButton(label: _envoi ? 'Ouverture…' : 'Ouvrir WhatsApp', icon: Icons.chat_bubble_outline, onPressed: _envoi ? () {} : _ouvrir),
+        const SizedBox(height: 10),
+        GhostButton(label: 'Ne pas envoyer maintenant', onPressed: () => Navigator.of(context).pop()),
+      ],
+    );
+  }
 }
 
 class CatalogPickerField extends StatefulWidget {

@@ -3,8 +3,10 @@ import '../data/repository.dart';
 import '../models/client.dart';
 import '../models/facture.dart';
 import '../theme/app_theme.dart';
+import '../theme/business_info.dart';
 import '../widgets/shared_widgets.dart';
 import '../services/pdf_service.dart';
+import '../services/whatsapp_service.dart';
 
 class FacturesScreen extends StatefulWidget {
   const FacturesScreen({super.key});
@@ -51,6 +53,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
       title: f.id,
       child: _FactureDetail(
         facture: f,
+        clients: _clients,
         onDelete: () async {
           final confirme = await confirmDelete(context, nom: '${f.id} — ${f.client}', typeElement: 'cette facture');
           if (!confirme) return;
@@ -192,8 +195,9 @@ class _FactureFormState extends State<_FactureForm> {
 
 class _FactureDetail extends StatefulWidget {
   final Facture facture;
+  final List<Client> clients;
   final VoidCallback onDelete;
-  const _FactureDetail({required this.facture, required this.onDelete});
+  const _FactureDetail({required this.facture, required this.clients, required this.onDelete});
 
   @override
   State<_FactureDetail> createState() => _FactureDetailState();
@@ -215,6 +219,29 @@ class _FactureDetailState extends State<_FactureDetail> {
     } finally {
       if (mounted) setState(() => _generating = false);
     }
+  }
+
+  /// Après avoir partagé le reçu, propose d'envoyer directement un message
+  /// WhatsApp au client (numéro retrouvé dans sa fiche) — même principe
+  /// que pour prévenir qu'une commande est prête.
+  void _proposerMessageWhatsapp(double montant, String? referenceFacture) {
+    final trouve = widget.clients.where((c) => c.nom == widget.facture.client);
+    final telephone = trouve.isEmpty ? '' : trouve.first.tel;
+    if (!WhatsappService.numeroValide(telephone)) return;
+
+    final message = 'Bonjour ${widget.facture.client}, voici la confirmation de votre versement de ${fmtFcfa(montant)}'
+        '${referenceFacture != null ? ' (réf. $referenceFacture)' : ''} chez ${BusinessInfo.nom}. '
+        'Merci de votre confiance 🙏';
+
+    showAppBottomSheet(
+      context,
+      title: 'Prévenir le client',
+      child: WhatsappMessageSheet(
+        telephone: telephone,
+        messageInitial: message,
+        introTexte: 'Un message peut être envoyé au client sur WhatsApp pour accompagner le reçu',
+      ),
+    );
   }
 
   @override
@@ -291,8 +318,11 @@ class _FactureDetailState extends State<_FactureDetail> {
                   montant: montantPaye,
                   date: facture.date,
                   referenceFacture: facture.id,
+                  soldeRestant: facture.solde,
                 );
                 await PdfService.shareOrDownload(bytes, 'Recu_${facture.id}.pdf');
+                if (!mounted) return;
+                _proposerMessageWhatsapp(montantPaye, facture.id);
               }),
             ),
           ],
