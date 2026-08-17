@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:sqflite/sqflite.dart';
 import '../data/database.dart';
 
@@ -49,15 +48,17 @@ class BackupService {
     await Share.shareXFiles([XFile(file.path)], text: 'Sauvegarde Champions Style du $horodatage');
   }
 
-  /// Ouvre le sélecteur de fichier pour choisir une sauvegarde .json à
-  /// restaurer. Remplace complètement les données actuelles — à utiliser
-  /// avec prudence (une confirmation est demandée côté interface avant).
-  static Future<bool> choisirEtRestaurer() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-    if (result == null || result.files.single.path == null) return false;
-    final file = File(result.files.single.path!);
-    final content = await file.readAsString();
-    final Map<String, dynamic> data = jsonDecode(content) as Map<String, dynamic>;
+  /// Restaure les données à partir du contenu texte d'une sauvegarde
+  /// (collé depuis le presse-papier ou saisi directement) — plutôt que
+  /// de passer par un sélecteur de fichier natif, pour rester fiable sur
+  /// toutes les configurations sans dépendance supplémentaire.
+  static Future<bool> restaurerDepuisTexte(String contenuJson) async {
+    final texte = contenuJson.trim();
+    if (texte.isEmpty) return false;
+    final Map<String, dynamic> data = jsonDecode(texte) as Map<String, dynamic>;
+    if (!data.containsKey('application') || data['application'] != 'Champions Style') {
+      throw const FormatException("Ce contenu ne correspond pas à une sauvegarde Champions Style.");
+    }
     await _restaurerDonnees(data);
     return true;
   }

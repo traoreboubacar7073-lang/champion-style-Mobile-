@@ -34,23 +34,16 @@ dependencies:
   # message déjà rédigé — utilisé pour prévenir qu'une commande est prête.
   url_launcher: ^6.2.5
 
-  # Partage de fichiers (sauvegarde JSON) et sélection de fichier pour
-  # restaurer une sauvegarde — paquets stables et très largement utilisés.
+  # Partage de fichiers (sauvegarde JSON) — paquet stable et très
+  # largement utilisé. La restauration se fait par collage du contenu
+  # (pas de sélecteur de fichier natif, pour éviter les soucis de
+  # compatibilité rencontrés avec ce type de paquet).
   share_plus: ^7.2.2
-  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-
-# Une dépendance interne partagée par plusieurs extensions
-# (flutter_plugin_android_lifecycle) a très récemment relevé sa propre
-# exigence à l'API Android 36, ce qui fait échouer la compilation. On
-# fixe ici une version un peu plus ancienne mais parfaitement stable et
-# fonctionnelle, publiée avant ce changement.
-dependency_overrides:
-  flutter_plugin_android_lifecycle: 2.0.28
 
 flutter:
   uses-material-design: true

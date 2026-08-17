@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard;
 import '../data/repository.dart';
 import '../models/utilisateur.dart';
 import '../theme/app_theme.dart';
@@ -66,35 +67,11 @@ class _ParametresScreenState extends State<ParametresScreen> {
   }
 
   Future<void> _restaurerSauvegarde() async {
-    final confirme = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.isDark ? AppColors.surface : AppColors.surfaceLightMode,
-        title: Text('Restaurer une sauvegarde ?', style: TextStyle(color: context.textPrimary, fontSize: 16)),
-        content: Text(
-          "Toutes les données actuelles de l'application seront remplacées par celles du fichier choisi. Cette action ne peut pas être annulée.",
-          style: TextStyle(color: context.textMuted, fontSize: 13),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler', style: TextStyle(color: context.textMuted))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Choisir le fichier', style: TextStyle(color: AppColors.rose, fontWeight: FontWeight.w600))),
-        ],
-      ),
+    await showAppBottomSheet(
+      context,
+      title: 'Restaurer une sauvegarde',
+      child: _RestaurationForm(onSuccess: () { Navigator.of(context).pop(); _load(); }),
     );
-    if (confirme != true) return;
-    setState(() => _sauvegardeEnCours = true);
-    try {
-      final reussi = await BackupService.choisirEtRestaurer();
-      if (!mounted) return;
-      if (reussi) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sauvegarde restaurée avec succès.'), backgroundColor: AppColors.deepGreen));
-        _load();
-      }
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ce fichier n'a pas pu être lu — vérifie que c'est bien une sauvegarde Champions Style.")));
-    } finally {
-      if (mounted) setState(() => _sauvegardeEnCours = false);
-    }
   }
 
   void _ouvrirGestionPin({required bool creation}) async {
@@ -499,6 +476,100 @@ class _InfoRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Fenêtre de restauration — l'utilisateur colle le contenu texte du
+/// fichier de sauvegarde exporté précédemment (ouvert dans n'importe
+/// quelle application de fichiers/notes/email, puis copié).
+class _RestaurationForm extends StatefulWidget {
+  final VoidCallback onSuccess;
+  const _RestaurationForm({required this.onSuccess});
+
+  @override
+  State<_RestaurationForm> createState() => _RestaurationFormState();
+}
+
+class _RestaurationFormState extends State<_RestaurationForm> {
+  final _texteCtrl = TextEditingController();
+  bool _enCours = false;
+  String? _erreur;
+
+  @override
+  void dispose() {
+    _texteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _collerDepuisPressePapier() async {
+    final data = await Clipboard.getData('text/plain');
+    if (data?.text != null) {
+      setState(() => _texteCtrl.text = data!.text!);
+    }
+  }
+
+  Future<void> _confirmerEtRestaurer() async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.isDark ? AppColors.surface : AppColors.surfaceLightMode,
+        title: Text('Restaurer cette sauvegarde ?', style: TextStyle(color: context.textPrimary, fontSize: 16)),
+        content: Text(
+          "Toutes les données actuelles de l'application seront remplacées par celles-ci. Cette action ne peut pas être annulée.",
+          style: TextStyle(color: context.textMuted, fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler', style: TextStyle(color: context.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restaurer', style: TextStyle(color: AppColors.rose, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+    if (confirme != true) return;
+
+    setState(() { _enCours = true; _erreur = null; });
+    try {
+      final reussi = await BackupService.restaurerDepuisTexte(_texteCtrl.text);
+      if (!mounted) return;
+      if (reussi) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sauvegarde restaurée avec succès.'), backgroundColor: AppColors.deepGreen));
+        widget.onSuccess();
+      }
+    } catch (_) {
+      setState(() => _erreur = "Ce contenu n'a pas pu être lu — vérifie qu'il s'agit bien d'une sauvegarde Champions Style complète.");
+    } finally {
+      if (mounted) setState(() => _enCours = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Ouvre le fichier de sauvegarde exporté (dans tes fichiers, Google Drive, WhatsApp, email...), copie tout son contenu, puis colle-le ci-dessous.",
+          style: TextStyle(color: context.textFaint, fontSize: 12.5),
+        ),
+        const SizedBox(height: 12),
+        GhostButton(label: 'Coller depuis le presse-papier', onPressed: _collerDepuisPressePapier),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _texteCtrl,
+          maxLines: 8,
+          style: TextStyle(color: context.textPrimary, fontSize: 12),
+          decoration: const InputDecoration(hintText: '{ "application": "Champions Style", ... }'),
+        ),
+        if (_erreur != null) ...[
+          const SizedBox(height: 8),
+          Text(_erreur!, style: const TextStyle(color: AppColors.rose, fontSize: 12)),
+        ],
+        const SizedBox(height: 18),
+        if (_enCours)
+          const Center(child: CircularProgressIndicator(color: AppColors.gold))
+        else
+          GoldButton(label: 'Restaurer', onPressed: _confirmerEtRestaurer),
+      ],
     );
   }
 }
