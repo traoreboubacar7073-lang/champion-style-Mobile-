@@ -13,6 +13,25 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Certaines extensions (ex : file_picker) sont compilées avec leur propre
+// valeur par défaut fournie par Flutter, indépendante de la configuration
+// de notre application — cette valeur par défaut est parfois trop basse
+// pour leurs propres dépendances. On force donc ici la même version des
+// API Android (36) pour TOUS les modules du projet, extensions comprises,
+// pas seulement le nôtre.
+subprojects {
+    afterEvaluate { project ->
+        // Le module "app" a déjà sa propre configuration (voir
+        // android/app/build.gradle) — cette règle ne concerne que les
+        // modules des extensions (file_picker, image_picker...).
+        if (project.name != "app" && project.hasProperty("android")) {
+            project.android {
+                compileSdkVersion 36
+            }
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
