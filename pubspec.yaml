@@ -37,7 +37,7 @@ dependencies:
   # Partage de fichiers (sauvegarde JSON) et sélection de fichier pour
   # restaurer une sauvegarde — paquets stables et très largement utilisés.
   share_plus: ^7.2.2
-  file_picker: ^6.2.1
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:
