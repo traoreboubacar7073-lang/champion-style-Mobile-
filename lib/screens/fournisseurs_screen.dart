@@ -35,11 +35,11 @@ class _FournisseursScreenState extends State<FournisseursScreen> {
     });
   }
 
-  void _openAdd() async {
+  void _openAdd({Fournisseur? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouveau fournisseur',
-      child: _FournisseurForm(onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier le fournisseur' : 'Nouveau fournisseur',
+      child: _FournisseurForm(existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -51,7 +51,13 @@ class _FournisseursScreenState extends State<FournisseursScreen> {
       child: _FournisseurDetail(
         fournisseur: f,
         articles: articles,
+        onEdit: () {
+          Navigator.of(context).pop();
+          _openAdd(existing: f);
+        },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: f.nom, typeElement: 'ce fournisseur');
+          if (!confirme) return;
           await _repo.delete(f);
           if (!mounted) return;
           Navigator.of(context).pop();
@@ -103,8 +109,9 @@ class _FournisseursScreenState extends State<FournisseursScreen> {
 }
 
 class _FournisseurForm extends StatefulWidget {
+  final Fournisseur? existing;
   final VoidCallback onSaved;
-  const _FournisseurForm({required this.onSaved});
+  const _FournisseurForm({this.existing, required this.onSaved});
 
   @override
   State<_FournisseurForm> createState() => _FournisseurFormState();
@@ -117,10 +124,26 @@ class _FournisseurFormState extends State<_FournisseurForm> {
   final _villeCtrl = TextEditingController();
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    final f = widget.existing;
+    if (f != null) {
+      _nomCtrl.text = f.nom;
+      _contactCtrl.text = f.contact;
+      _villeCtrl.text = f.ville;
+    }
+  }
+
   Future<void> _save() async {
     if (_nomCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await _repo.create(nom: _nomCtrl.text.trim(), contact: _contactCtrl.text.trim(), ville: _villeCtrl.text.trim());
+    if (widget.existing != null) {
+      final updated = Fournisseur(id: widget.existing!.id, nom: _nomCtrl.text.trim(), contact: _contactCtrl.text.trim(), ville: _villeCtrl.text.trim());
+      await _repo.update(updated);
+    } else {
+      await _repo.create(nom: _nomCtrl.text.trim(), contact: _contactCtrl.text.trim(), ville: _villeCtrl.text.trim());
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -143,7 +166,7 @@ class _FournisseurFormState extends State<_FournisseurForm> {
         const SizedBox(height: 6),
         TextField(controller: _villeCtrl, decoration: const InputDecoration()),
         const SizedBox(height: 20),
-        GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
+        GoldButton(label: _saving ? 'Enregistrement…' : (widget.existing != null ? 'Enregistrer les modifications' : 'Enregistrer'), onPressed: _saving ? () {} : _save),
       ],
     );
   }
@@ -152,8 +175,9 @@ class _FournisseurFormState extends State<_FournisseurForm> {
 class _FournisseurDetail extends StatelessWidget {
   final Fournisseur fournisseur;
   final List<StockItem> articles;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _FournisseurDetail({required this.fournisseur, required this.articles, required this.onDelete});
+  const _FournisseurDetail({required this.fournisseur, required this.articles, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +206,8 @@ class _FournisseurDetail extends StatelessWidget {
                 ),
               )),
         const SizedBox(height: 16),
+        GhostButton(label: 'Modifier ce fournisseur', onPressed: onEdit),
+        const SizedBox(height: 10),
         TextButton(
           onPressed: onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),

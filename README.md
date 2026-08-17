@@ -1,5 +1,47 @@
 # Champions Style — Application Flutter (native)
 
+## ⚠️ Étape unique et importante avant la prochaine installation
+
+Cette version introduit une **clé de signature fixe et permanente** pour
+l'application (voir plus bas "Pourquoi une clé de signature fixe"). Comme
+l'application déjà installée sur ton téléphone a été signée avec une
+ancienne clé temporaire (différente à chaque compilation précédente),
+Android va **refuser d'installer cette nouvelle version par-dessus
+l'ancienne** — il faudra désinstaller l'ancienne une seule fois.
+
+**Pour ne perdre aucune donnée pendant cette transition, suis cet ordre
+exact :**
+
+1. **Ouvre l'application actuelle** sur ton téléphone (celle déjà installée)
+2. Va dans **Paramètres → Sauvegarde → "Exporter une copie"**
+3. Partage ce fichier vers toi-même (WhatsApp, email, Google Drive — peu importe, du moment que tu peux le retrouver après)
+4. **Désinstalle** l'application actuelle (appui long sur l'icône → Désinstaller)
+5. Installe cette nouvelle version (`.apk` généré par la prochaine compilation GitHub)
+6. Ouvre la nouvelle version, va dans **Paramètres → Sauvegarde → "Restaurer une sauvegarde"**, et choisis le fichier exporté à l'étape 3
+
+Tes données seront alors exactement comme avant. **À partir de cette
+version, cette manipulation ne sera plus jamais nécessaire** — toutes les
+prochaines mises à jour s'installeront normalement par-dessus, sans rien
+effacer, comme n'importe quelle application du Play Store.
+
+## Pourquoi une clé de signature fixe (pour comprendre)
+
+Android exige que toute mise à jour d'une application soit signée avec
+exactement la même clé que la version déjà installée — sinon, il refuse
+l'installation (ou, si l'ancienne app est désinstallée d'abord, considère
+que c'est une toute nouvelle application, sans lien avec les données de
+l'ancienne). Comme GitHub Actions repart d'une machine vierge à chaque
+compilation, une clé de signature "temporaire" par défaut serait
+différente à chaque fois. Ce projet contient donc maintenant un vrai
+fichier de clé (`android/app/keystore/champions-style-release.jks`),
+généré une seule fois et réutilisé à chaque compilation future — c'est ce
+qui permet les mises à jour normales, sans perte de données.
+
+**Ne supprime jamais ce fichier de clé, ni ne le régénère** — s'il change,
+le problème de cette section reviendrait à la prochaine mise à jour.
+
+---
+
 ## ⚠️ Important à savoir avant de commencer
 
 Ce projet a été écrit **sans pouvoir être compilé ni testé** par l'assistant qui

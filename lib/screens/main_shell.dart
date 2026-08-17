@@ -18,6 +18,7 @@ import 'fournisseurs_screen.dart';
 import 'employes_screen.dart';
 import 'corbeille_screen.dart';
 import 'calendrier_screen.dart';
+import 'boutique_screen.dart';
 import '../services/notifications_service.dart';
 
 class DrawerItem {
@@ -35,6 +36,7 @@ class DrawerItem {
 /// distinctes d'un coup d'œil.
 final List<DrawerItem> drawerItems = [
   DrawerItem('Produits & Services', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
+  DrawerItem('Boutique — Vente rapide', Icons.storefront_outlined, AppColors.pink, (_) => const BoutiqueScreen()),
   DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const DevisScreen()),
   DrawerItem('Calendrier', Icons.calendar_month_outlined, AppColors.purple, (_) => const CalendrierScreen()),
   DrawerItem('Paiements', Icons.credit_card_outlined, AppColors.deepGreen, (_) => const PaiementsScreen()),
@@ -275,6 +277,7 @@ class _NotificationBellState extends State<_NotificationBell> {
                           Navigator.push(context, MaterialPageRoute(builder: (_) {
                             if (a.cible == 'stock') return const StockScreen();
                             if (a.cible == 'depenses') return const DepensesScreen();
+                            if (a.cible == 'employes') return const EmployesScreen();
                             return const DashboardScreen();
                           }));
                         }

@@ -63,6 +63,8 @@ class _DepensesScreenState extends State<DepensesScreen> {
           _load();
         },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: d.categorie, typeElement: 'cette dépense');
+          if (!confirme) return;
           await _repo.delete(d);
           if (!mounted) return;
           Navigator.of(context).pop();

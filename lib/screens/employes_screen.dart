@@ -4,7 +4,7 @@ import '../models/employe.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
-const List<String> frequencesPaiement = ['Journalier', 'Hebdomadaire', 'Mensuel'];
+const List<String> frequencesPaiement = ['Journalier', 'Hebdomadaire', 'Mensuel', 'Par tenue'];
 const List<String> modesPaiementEmploye = ['Espèces', 'Orange Money', 'Moov Money', 'Virement bancaire', 'Mobicash'];
 
 const List<String> _moisAbbr = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -72,11 +72,11 @@ class _EmployesScreenState extends State<EmployesScreen> {
     });
   }
 
-  void _openAdd() async {
+  void _openAdd({Employe? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouvel employé',
-      child: _EmployeForm(onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier l\'employé' : 'Nouvel employé',
+      child: _EmployeForm(existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -88,6 +88,10 @@ class _EmployesScreenState extends State<EmployesScreen> {
       child: _EmployeDetail(
         employe: e,
         historique: historique,
+        onEdit: () {
+          Navigator.of(context).pop();
+          _openAdd(existing: e);
+        },
         onAjouterPaiement: () async {
           Navigator.of(context).pop();
           await showAppBottomSheet(
@@ -97,6 +101,8 @@ class _EmployesScreenState extends State<EmployesScreen> {
           );
         },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: e.nom, typeElement: 'cet employé');
+          if (!confirme) return;
           await _repo.delete(e);
           if (!mounted) return;
           Navigator.of(context).pop();
@@ -204,8 +210,9 @@ class _MiniTotal extends StatelessWidget {
 }
 
 class _EmployeForm extends StatefulWidget {
+  final Employe? existing;
   final VoidCallback onSaved;
-  const _EmployeForm({required this.onSaved});
+  const _EmployeForm({this.existing, required this.onSaved});
 
   @override
   State<_EmployeForm> createState() => _EmployeFormState();
@@ -220,16 +227,39 @@ class _EmployeFormState extends State<_EmployeForm> {
   String _frequence = 'Mensuel';
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nomCtrl.text = e.nom;
+      _posteCtrl.text = e.poste;
+      _specialiteCtrl.text = e.specialite;
+      _frequence = e.frequencePaiement;
+      _tauxCtrl.text = e.tauxPaiement == e.tauxPaiement.roundToDouble() ? e.tauxPaiement.toStringAsFixed(0) : e.tauxPaiement.toString();
+    }
+  }
+
   Future<void> _save() async {
     if (_nomCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await _repo.create(
-      nom: _nomCtrl.text.trim(),
-      poste: _posteCtrl.text.trim(),
-      specialite: _specialiteCtrl.text.trim(),
-      frequencePaiement: _frequence,
-      tauxPaiement: double.tryParse(_tauxCtrl.text) ?? 0,
-    );
+    if (widget.existing != null) {
+      final updated = Employe(
+        id: widget.existing!.id,
+        nom: _nomCtrl.text.trim(), poste: _posteCtrl.text.trim(), specialite: _specialiteCtrl.text.trim(),
+        frequencePaiement: _frequence, tauxPaiement: double.tryParse(_tauxCtrl.text) ?? 0,
+        embauche: widget.existing!.embauche,
+      );
+      await _repo.update(updated);
+    } else {
+      await _repo.create(
+        nom: _nomCtrl.text.trim(),
+        poste: _posteCtrl.text.trim(),
+        specialite: _specialiteCtrl.text.trim(),
+        frequencePaiement: _frequence,
+        tauxPaiement: double.tryParse(_tauxCtrl.text) ?? 0,
+      );
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -257,7 +287,7 @@ class _EmployeFormState extends State<_EmployeForm> {
           onChanged: (v) => setState(() => _frequence = v ?? 'Mensuel'),
         ),
         const SizedBox(height: 14),
-        Text('Montant par période', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        Text(_frequence == 'Par tenue' ? 'Montant par tenue confectionnée' : 'Montant par période', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
         TextField(controller: _tauxCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration()),
         const SizedBox(height: 14),
@@ -265,7 +295,7 @@ class _EmployeFormState extends State<_EmployeForm> {
         const SizedBox(height: 6),
         TextField(controller: _specialiteCtrl, decoration: const InputDecoration(hintText: 'Ex : Robes de soirée — laisser vide si non couturier')),
         const SizedBox(height: 20),
-        GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
+        GoldButton(label: _saving ? 'Enregistrement…' : (widget.existing != null ? 'Enregistrer les modifications' : 'Enregistrer'), onPressed: _saving ? () {} : _save),
       ],
     );
   }
@@ -274,9 +304,10 @@ class _EmployeFormState extends State<_EmployeForm> {
 class _EmployeDetail extends StatelessWidget {
   final Employe employe;
   final List<PaiementEmploye> historique;
+  final VoidCallback onEdit;
   final VoidCallback onAjouterPaiement;
   final VoidCallback onDelete;
-  const _EmployeDetail({required this.employe, required this.historique, required this.onAjouterPaiement, required this.onDelete});
+  const _EmployeDetail({required this.employe, required this.historique, required this.onEdit, required this.onAjouterPaiement, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -295,6 +326,8 @@ class _EmployeDetail extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         GoldButton(label: 'Enregistrer un paiement', onPressed: onAjouterPaiement),
+        const SizedBox(height: 10),
+        GhostButton(label: 'Modifier cet employé', onPressed: onEdit),
         const SizedBox(height: 16),
         Text('HISTORIQUE', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
         const SizedBox(height: 10),
@@ -345,14 +378,32 @@ class _PaiementEmployeForm extends StatefulWidget {
 class _PaiementEmployeFormState extends State<_PaiementEmployeForm> {
   final _montantCtrl = TextEditingController();
   final _periodeCtrl = TextEditingController();
+  final _nbTenuesCtrl = TextEditingController(text: '1');
   String _mode = 'Espèces';
   bool _saving = false;
+
+  bool get _parTenue => widget.employe.frequencePaiement == 'Par tenue';
+
+  @override
+  void initState() {
+    super.initState();
+    if (_parTenue) _recalculerMontant();
+  }
+
+  void _recalculerMontant() {
+    final nb = double.tryParse(_nbTenuesCtrl.text) ?? 0;
+    final montant = widget.employe.tauxPaiement * nb;
+    _montantCtrl.text = montant == montant.roundToDouble() ? montant.toStringAsFixed(0) : montant.toString();
+  }
 
   Future<void> _save() async {
     final montant = double.tryParse(_montantCtrl.text) ?? 0;
     if (montant <= 0) return;
     setState(() => _saving = true);
-    await PaiementEmployeRepository().create(employe: widget.employe.nom, montant: montant, mode: _mode, periode: _periodeCtrl.text.trim());
+    final periode = _parTenue && _periodeCtrl.text.trim().isEmpty
+        ? '${_nbTenuesCtrl.text} tenue(s)'
+        : _periodeCtrl.text.trim();
+    await PaiementEmployeRepository().create(employe: widget.employe.nom, montant: montant, mode: _mode, periode: periode);
     // Chaque paiement à un employé est automatiquement compté comme une
     // dépense de l'atelier — même logique que sur les autres versions.
     await DepenseRepository().create(categorie: 'Salaires & paiements employés', montant: montant, montantVerse: montant);
@@ -367,6 +418,19 @@ class _PaiementEmployeFormState extends State<_PaiementEmployeForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(widget.employe.nom, style: TextStyle(color: context.textFaint, fontSize: 13)),
+        if (_parTenue) ...[
+          const SizedBox(height: 14),
+          Text('Nombre de tenues confectionnées', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _nbTenuesCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(),
+            onChanged: (_) => setState(_recalculerMontant),
+          ),
+          const SizedBox(height: 4),
+          Text('${fmtFcfa(widget.employe.tauxPaiement)} par tenue', style: TextStyle(color: context.textFaint, fontSize: 11.5, fontStyle: FontStyle.italic)),
+        ],
         const SizedBox(height: 14),
         Text('Montant versé *', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
@@ -383,7 +447,7 @@ class _PaiementEmployeFormState extends State<_PaiementEmployeForm> {
         const SizedBox(height: 14),
         Text('Période couverte (facultatif)', style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 6),
-        TextField(controller: _periodeCtrl, decoration: const InputDecoration(hintText: 'Ex : Semaine du 10 au 16')),
+        TextField(controller: _periodeCtrl, decoration: InputDecoration(hintText: _parTenue ? 'Ex : Semaine du 10 au 16 (facultatif)' : 'Ex : Semaine du 10 au 16')),
         const SizedBox(height: 20),
         GoldButton(label: _saving ? 'Enregistrement…' : 'Confirmer', onPressed: _saving ? () {} : _save),
       ],

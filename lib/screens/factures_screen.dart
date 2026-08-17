@@ -52,6 +52,8 @@ class _FacturesScreenState extends State<FacturesScreen> {
       child: _FactureDetail(
         facture: f,
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: '${f.id} — ${f.client}', typeElement: 'cette facture');
+          if (!confirme) return;
           await _repo.delete(f);
           if (!mounted) return;
           Navigator.of(context).pop();

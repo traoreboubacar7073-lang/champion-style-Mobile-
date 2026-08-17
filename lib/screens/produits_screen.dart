@@ -34,50 +34,44 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
     });
   }
 
-  void _openAdd() async {
+  void _openAdd({Modele? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouveau produit',
-      child: _ModeleForm(onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier le produit' : 'Nouveau produit',
+      child: _ModeleForm(existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
-  void _openLightbox(Modele m) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (m.photo.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.memory(base64Decode(m.photo), fit: BoxFit.contain),
-              ),
-            const SizedBox(height: 14),
-            Text(m.nom, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
-            Text('${m.categorie} · ${fmtFcfa(m.prix)}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmDelete(Modele m) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.isDark ? AppColors.surface : AppColors.surfaceLightMode,
-        title: Text('Supprimer ce produit ?', style: TextStyle(color: context.textPrimary, fontSize: 16)),
-        content: Text('« ${m.nom} » sera déplacé dans la corbeille.', style: TextStyle(color: context.textMuted, fontSize: 13)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Annuler', style: TextStyle(color: context.textMuted))),
+  void _openDetail(Modele m) async {
+    await showAppBottomSheet(
+      context,
+      title: m.nom,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (m.photo.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.memory(base64Decode(m.photo), height: 180, width: double.infinity, fit: BoxFit.cover),
+            ),
+          const SizedBox(height: 14),
+          Text('${m.categorie} · ${m.jours} jour${m.jours > 1 ? "s" : ""} de délai', style: TextStyle(color: context.textFaint, fontSize: 12.5)),
+          const SizedBox(height: 4),
+          Text(fmtFcfa(m.prix), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 20)),
+          const SizedBox(height: 18),
+          GhostButton(label: 'Modifier ce produit', onPressed: () { Navigator.of(context).pop(); _openAdd(existing: m); }),
+          const SizedBox(height: 10),
           TextButton(
-            onPressed: () async { await _repo.delete(m); if (!mounted) return; Navigator.pop(ctx); _load(); },
-            child: const Text('Supprimer', style: TextStyle(color: AppColors.rose)),
+            onPressed: () async {
+              final confirme = await confirmDelete(context, nom: m.nom, typeElement: 'ce produit');
+              if (!confirme) return;
+              await _repo.delete(m);
+              if (!mounted) return;
+              Navigator.of(context).pop();
+              _load();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
+            child: const Text('Supprimer ce produit', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -105,8 +99,7 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
                     itemBuilder: (ctx, i) {
                       final m = _modeles[i];
                       return InkWell(
-                        onTap: () => m.photo.isNotEmpty ? _openLightbox(m) : null,
-                        onLongPress: () => _confirmDelete(m),
+                        onTap: () => _openDetail(m),
                         borderRadius: BorderRadius.circular(16),
                         child: Container(
                           decoration: BoxDecoration(
@@ -173,8 +166,9 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
 }
 
 class _ModeleForm extends StatefulWidget {
+  final Modele? existing;
   final VoidCallback onSaved;
-  const _ModeleForm({required this.onSaved});
+  const _ModeleForm({this.existing, required this.onSaved});
 
   @override
   State<_ModeleForm> createState() => _ModeleFormState();
@@ -189,16 +183,40 @@ class _ModeleFormState extends State<_ModeleForm> {
   String? _photo;
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    final m = widget.existing;
+    if (m != null) {
+      _nomCtrl.text = m.nom;
+      _prixCtrl.text = m.prix == m.prix.roundToDouble() ? m.prix.toStringAsFixed(0) : m.prix.toString();
+      _joursCtrl.text = '${m.jours}';
+      _categorie = m.categorie;
+      _photo = m.photo.isEmpty ? null : m.photo;
+    }
+  }
+
   Future<void> _save() async {
     if (_nomCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await _repo.create(
-      nom: _nomCtrl.text.trim(),
-      categorie: _categorie,
-      prix: double.tryParse(_prixCtrl.text) ?? 0,
-      jours: int.tryParse(_joursCtrl.text) ?? 1,
-      photo: _photo ?? '',
-    );
+    if (widget.existing != null) {
+      final updated = Modele(
+        id: widget.existing!.id,
+        nom: _nomCtrl.text.trim(), categorie: _categorie,
+        prix: double.tryParse(_prixCtrl.text) ?? 0,
+        jours: int.tryParse(_joursCtrl.text) ?? 1,
+        photo: _photo ?? '',
+      );
+      await _repo.update(updated);
+    } else {
+      await _repo.create(
+        nom: _nomCtrl.text.trim(),
+        categorie: _categorie,
+        prix: double.tryParse(_prixCtrl.text) ?? 0,
+        jours: int.tryParse(_joursCtrl.text) ?? 1,
+        photo: _photo ?? '',
+      );
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -252,7 +270,7 @@ class _ModeleFormState extends State<_ModeleForm> {
           ],
         ),
         const SizedBox(height: 20),
-        GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
+        GoldButton(label: _saving ? 'Enregistrement…' : (widget.existing != null ? 'Enregistrer les modifications' : 'Enregistrer'), onPressed: _saving ? () {} : _save),
       ],
     );
   }

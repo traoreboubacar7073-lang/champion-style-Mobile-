@@ -5,6 +5,20 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Clé de signature persistante — la même à chaque compilation, sur
+// n'importe quelle machine (y compris GitHub Actions, qui repart d'une
+// machine vierge à chaque fois). C'est ce qui permet à une nouvelle
+// version de l'application de s'installer comme une VRAIE mise à jour
+// par-dessus l'ancienne, sans effacer les données existantes du
+// téléphone. Ne jamais changer ce fichier ni ces mots de passe une fois
+// la première version installée sur un téléphone.
+def keystoreProperties = [
+    storeFile: file("keystore/champions-style-release.jks"),
+    storePassword: "ChampionsStyle2026Bko",
+    keyAlias: "champions-style",
+    keyPassword: "ChampionsStyle2026Bko",
+]
+
 android {
     namespace = "com.championsstyle.champions_style"
     compileSdk = flutter.compileSdkVersion
@@ -30,14 +44,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            storeFile = keystoreProperties.storeFile
+            storePassword = keystoreProperties.storePassword
+            keyAlias = keystoreProperties.keyAlias
+            keyPassword = keystoreProperties.keyPassword
+        }
+    }
+
     buildTypes {
         release {
-            // Signature avec la clé de débogage pour l'instant, afin que
-            // "flutter build apk --release" fonctionne directement sans
-            // configuration supplémentaire. Une vraie clé de signature
-            // pourra être ajoutée plus tard, avant une éventuelle
-            // publication sur le Play Store.
-            signingConfig = signingConfigs.debug
+            // Signature avec la vraie clé persistante de l'application —
+            // garantit que chaque nouvelle version compilée est reconnue
+            // par Android comme une mise à jour de la précédente.
+            signingConfig = signingConfigs.release
         }
     }
 

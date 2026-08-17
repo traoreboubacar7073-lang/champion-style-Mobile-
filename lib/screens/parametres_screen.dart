@@ -4,6 +4,7 @@ import '../models/utilisateur.dart';
 import '../theme/app_theme.dart';
 import '../theme/business_info.dart';
 import '../widgets/shared_widgets.dart';
+import '../services/backup_service.dart';
 
 class ParametresScreen extends StatefulWidget {
   const ParametresScreen({super.key});
@@ -17,6 +18,7 @@ class _ParametresScreenState extends State<ParametresScreen> {
   final _userRepo = UserRepository();
   List<Utilisateur> _users = [];
   bool _loading = true;
+  bool _pinActif = false;
 
   @override
   void initState() {
@@ -26,9 +28,11 @@ class _ParametresScreenState extends State<ParametresScreen> {
 
   Future<void> _load() async {
     final users = await _userRepo.all();
+    final pin = await _paramRepo.getPinCode();
     if (!mounted) return;
     setState(() {
       _users = users;
+      _pinActif = pin != null && pin.isNotEmpty;
       _loading = false;
     });
   }
@@ -46,6 +50,116 @@ class _ParametresScreenState extends State<ParametresScreen> {
   Future<void> _setTaille(String key) async {
     tailleTexteNotifier.value = taillesTexte[key] ?? 1.0;
     await _paramRepo.setTailleTexte(key);
+  }
+
+  bool _sauvegardeEnCours = false;
+
+  Future<void> _exporterSauvegarde() async {
+    setState(() => _sauvegardeEnCours = true);
+    try {
+      await BackupService.partagerSauvegarde();
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Impossible de générer la sauvegarde.")));
+    } finally {
+      if (mounted) setState(() => _sauvegardeEnCours = false);
+    }
+  }
+
+  Future<void> _restaurerSauvegarde() async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.isDark ? AppColors.surface : AppColors.surfaceLightMode,
+        title: Text('Restaurer une sauvegarde ?', style: TextStyle(color: context.textPrimary, fontSize: 16)),
+        content: Text(
+          "Toutes les données actuelles de l'application seront remplacées par celles du fichier choisi. Cette action ne peut pas être annulée.",
+          style: TextStyle(color: context.textMuted, fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler', style: TextStyle(color: context.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Choisir le fichier', style: TextStyle(color: AppColors.rose, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+    if (confirme != true) return;
+    setState(() => _sauvegardeEnCours = true);
+    try {
+      final reussi = await BackupService.choisirEtRestaurer();
+      if (!mounted) return;
+      if (reussi) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sauvegarde restaurée avec succès.'), backgroundColor: AppColors.deepGreen));
+        _load();
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ce fichier n'a pas pu être lu — vérifie que c'est bien une sauvegarde Champions Style.")));
+    } finally {
+      if (mounted) setState(() => _sauvegardeEnCours = false);
+    }
+  }
+
+  void _ouvrirGestionPin({required bool creation}) async {
+    final ctrl1 = TextEditingController();
+    final ctrl2 = TextEditingController();
+    await showAppBottomSheet(
+      context,
+      title: creation ? 'Définir un code PIN' : 'Modifier le code PIN',
+      child: StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          String? erreur;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Nouveau code (4 à 6 chiffres)', style: TextStyle(color: context.textMuted, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextField(controller: ctrl1, keyboardType: TextInputType.number, obscureText: true, maxLength: 6, decoration: const InputDecoration()),
+              Text('Confirmer le code', style: TextStyle(color: context.textMuted, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextField(controller: ctrl2, keyboardType: TextInputType.number, obscureText: true, maxLength: 6, decoration: const InputDecoration()),
+              if (erreur != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(erreur!, style: const TextStyle(color: AppColors.rose, fontSize: 12))),
+              GoldButton(
+                label: 'Enregistrer',
+                onPressed: () async {
+                  final p1 = ctrl1.text.trim();
+                  final p2 = ctrl2.text.trim();
+                  if (p1.length < 4 || p1.length > 6) {
+                    setSheetState(() => erreur = 'Le code doit contenir 4 à 6 chiffres.');
+                    return;
+                  }
+                  if (p1 != p2) {
+                    setSheetState(() => erreur = 'Les deux codes ne correspondent pas.');
+                    return;
+                  }
+                  await _paramRepo.setPinCode(p1);
+                  if (!mounted) return;
+                  setState(() => _pinActif = true);
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _retirerPin() async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.isDark ? AppColors.surface : AppColors.surfaceLightMode,
+        title: Text('Retirer le code PIN ?', style: TextStyle(color: context.textPrimary, fontSize: 16)),
+        content: Text("L'application ne demandera plus de code à l'ouverture.", style: TextStyle(color: context.textMuted, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler', style: TextStyle(color: context.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Retirer', style: TextStyle(color: AppColors.rose))),
+        ],
+      ),
+    );
+    if (confirme == true) {
+      await _paramRepo.setPinCode(null);
+      if (!mounted) return;
+      setState(() => _pinActif = false);
+    }
   }
 
   void _openAddUser() async {
@@ -252,6 +366,62 @@ class _ParametresScreenState extends State<ParametresScreen> {
                     ),
                   ),
                 )),
+          const SizedBox(height: 24),
+          Text('SÉCURITÉ', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+          const SizedBox(height: 10),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Code PIN', style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
+                        Text(_pinActif ? 'Activé — demandé à l\'ouverture' : 'Désactivé', style: TextStyle(color: context.textFaint, fontSize: 12)),
+                      ],
+                    ),
+                    Icon(_pinActif ? Icons.lock_outline : Icons.lock_open_outlined, color: _pinActif ? AppColors.deepGreen : context.textFaint, size: 22),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_pinActif)
+                  Row(
+                    children: [
+                      Expanded(child: GhostButton(label: 'Modifier', onPressed: () => _ouvrirGestionPin(creation: false))),
+                      const SizedBox(width: 10),
+                      Expanded(child: GhostButton(label: 'Retirer', onPressed: _retirerPin)),
+                    ],
+                  )
+                else
+                  GoldButton(label: 'Activer un code PIN', onPressed: () => _ouvrirGestionPin(creation: true)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('SAUVEGARDE', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+          const SizedBox(height: 10),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Toutes les données restent uniquement sur ce téléphone. Exporte régulièrement une copie pour ne rien perdre si le téléphone est perdu, cassé, ou l'application supprimée par erreur.",
+                  style: TextStyle(color: context.textFaint, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                if (_sauvegardeEnCours)
+                  const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 10), child: CircularProgressIndicator(color: AppColors.gold)))
+                else ...[
+                  GoldButton(label: 'Exporter une copie', onPressed: _exporterSauvegarde),
+                  const SizedBox(height: 10),
+                  GhostButton(label: 'Restaurer une sauvegarde', onPressed: _restaurerSauvegarde),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           Text('ENTREPRISE', style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
           const SizedBox(height: 10),

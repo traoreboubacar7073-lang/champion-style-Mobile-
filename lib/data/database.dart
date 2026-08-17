@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(dbPath, 'champions_style.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -44,6 +44,37 @@ class AppDatabase {
         )
       ''');
     }
+    if (oldVersion < 3) {
+      await _creerTablesBoutique(db);
+    }
+    if (oldVersion < 4) {
+      await db.execute("ALTER TABLE parametres ADD COLUMN pinCode TEXT");
+    }
+  }
+
+  /// Articles vendus directement en boutique (tissus, montres, parfums,
+  /// gels de douche, prêt-à-porter...) — indépendants des clients et des
+  /// commandes de couture, pour une vente rapide au comptoir.
+  Future<void> _creerTablesBoutique(Database db) async {
+    await db.execute('''
+      CREATE TABLE articles_boutique (
+        id TEXT PRIMARY KEY,
+        nom TEXT NOT NULL,
+        categorie TEXT NOT NULL,
+        prix REAL DEFAULT 0
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE ventes_boutique (
+        id TEXT PRIMARY KEY,
+        article TEXT NOT NULL,
+        categorie TEXT NOT NULL,
+        prixUnitaire REAL DEFAULT 0,
+        quantite REAL DEFAULT 1,
+        montant REAL DEFAULT 0,
+        date TEXT
+      )
+    ''');
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -196,7 +227,8 @@ class AppDatabase {
         businessOverrideJson TEXT DEFAULT '{}',
         policeStyle TEXT DEFAULT 'elegant',
         tailleTexte TEXT DEFAULT 'normale',
-        themeMode TEXT DEFAULT 'dark'
+        themeMode TEXT DEFAULT 'dark',
+        pinCode TEXT
       )
     ''');
     await db.execute('''
@@ -207,6 +239,7 @@ class AppDatabase {
         actif INTEGER DEFAULT 1
       )
     ''');
+    await _creerTablesBoutique(db);
     await db.insert('parametres', {
       'id': 1,
       'businessOverrideJson': '{}',

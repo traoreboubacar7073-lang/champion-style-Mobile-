@@ -88,5 +88,44 @@ Future<List<AlertItem>> computeAlerts() async {
     }
   }
 
+  final employes = await EmployeRepository().all();
+  final paiementsEmployes = await PaiementEmployeRepository().all();
+  for (final e in employes) {
+    // "Par tenue" n'est pas basé sur une échéance de calendrier (on paie
+    // à la pièce confectionnée) — pas d'alerte automatique pertinente ici.
+    if (e.frequencePaiement == 'Par tenue') continue;
+
+    final paiementsDeCetEmploye = paiementsEmployes.where((p) => p.employe == e.nom).toList();
+    DateTime? dernierPaiement;
+    for (final p in paiementsDeCetEmploye) {
+      final d = _parseFrDateAlert(p.date);
+      if (d != null && (dernierPaiement == null || d.isAfter(dernierPaiement))) dernierPaiement = d;
+    }
+
+    bool estDu = false;
+    String detail;
+    if (dernierPaiement == null) {
+      estDu = true;
+      detail = 'Aucun paiement enregistré pour le moment';
+    } else {
+      final joursDepuis = DateTime(now.year, now.month, now.day).difference(dernierPaiement).inDays;
+      final seuil = e.frequencePaiement == 'Journalier' ? 1 : (e.frequencePaiement == 'Hebdomadaire' ? 7 : 30);
+      estDu = joursDepuis >= seuil;
+      detail = 'Dernier versement le ${_formatDateAlert(dernierPaiement)} · ${e.frequencePaiement}';
+    }
+
+    if (estDu) {
+      alerts.add(AlertItem(
+        titre: 'Paiement employé dû — ${e.nom}',
+        detail: detail,
+        icon: Icons.payments_outlined, color: AppColors.purple, cible: 'employes',
+      ));
+    }
+  }
+
   return alerts;
+}
+
+String _formatDateAlert(DateTime d) {
+  return '${d.day.toString().padLeft(2, '0')} ${_moisAbbrAlert[d.month - 1]} ${d.year}';
 }

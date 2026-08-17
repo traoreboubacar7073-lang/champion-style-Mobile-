@@ -16,6 +16,8 @@ class IdGenerator {
     'employes': 'E',
     'paiements_employes': 'PE',
     'paiements': 'PAY',
+    'articles_boutique': 'AB',
+    'ventes_boutique': 'VB',
   };
 
   static Future<String> next(Database db, String table) async {

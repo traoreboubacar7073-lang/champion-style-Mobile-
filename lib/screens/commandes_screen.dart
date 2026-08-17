@@ -5,7 +5,9 @@ import '../models/commande.dart';
 import '../models/employe.dart';
 import '../models/modele.dart';
 import '../theme/app_theme.dart';
+import '../theme/business_info.dart';
 import '../widgets/shared_widgets.dart';
+import '../services/whatsapp_service.dart';
 import 'factures_screen.dart';
 
 const List<String> statutsCommande = ['Nouvelle', 'En cours', 'Essayage', 'Prête', 'Livrée'];
@@ -51,11 +53,11 @@ class _CommandesScreenState extends State<CommandesScreen> {
   List<Commande> get _filtered =>
       _filtre == 'Toutes' ? _commandes : _commandes.where((c) => c.statut == _filtre).toList();
 
-  void _openAdd() async {
+  void _openAdd({Commande? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouvelle commande',
-      child: _CommandeForm(clients: _clients, employes: _employes, modeles: _modeles, onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier la commande' : 'Nouvelle commande',
+      child: _CommandeForm(clients: _clients, employes: _employes, modeles: _modeles, existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -65,7 +67,15 @@ class _CommandesScreenState extends State<CommandesScreen> {
       title: c.id,
       child: _CommandeDetail(
         commande: c,
-        onStatutChange: (s) async { await _repo.updateStatut(c.id, s); _load(); },
+        onEdit: () {
+          Navigator.of(context).pop();
+          _openAdd(existing: c);
+        },
+        onStatutChange: (s) async {
+          await _repo.updateStatut(c.id, s);
+          _load();
+          if (s == 'Prête') _proposerMessageWhatsapp(c);
+        },
         onFacturer: () async {
           final facture = await FactureRepository().creerDepuisCommande(c);
           if (!mounted) return;
@@ -75,12 +85,34 @@ class _CommandesScreenState extends State<CommandesScreen> {
           );
         },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: '${c.id} — ${c.client}', typeElement: 'cette commande');
+          if (!confirme) return;
           await _repo.delete(c);
           if (!mounted) return;
           Navigator.of(context).pop();
           _load();
         },
       ),
+    );
+  }
+
+  /// Propose d'ouvrir WhatsApp avec un message déjà rédigé, dès qu'une
+  /// commande passe au statut "Prête" — à condition que le client ait un
+  /// numéro de téléphone enregistré.
+  void _proposerMessageWhatsapp(Commande c) async {
+    final client = _clients.where((cl) => cl.nom == c.client).toList();
+    final telephone = client.isNotEmpty ? client.first.tel : '';
+    if (!WhatsappService.numeroValide(telephone)) return;
+
+    final messageParDefaut =
+        'Bonjour ${c.client}, votre commande (${c.modele}) chez ${BusinessInfo.nom} est prête ! '
+        'Vous pouvez venir la récupérer quand vous le souhaitez. Merci de votre confiance 🙏';
+
+    if (!mounted) return;
+    await showAppBottomSheet(
+      context,
+      title: 'Prévenir le client',
+      child: _MessageWhatsappForm(telephone: telephone, messageInitial: messageParDefaut),
     );
   }
 
@@ -415,10 +447,11 @@ class _CommandeFormState extends State<_CommandeForm> {
 
 class _CommandeDetail extends StatefulWidget {
   final Commande commande;
+  final VoidCallback onEdit;
   final void Function(String) onStatutChange;
   final VoidCallback onFacturer;
   final VoidCallback onDelete;
-  const _CommandeDetail({required this.commande, required this.onStatutChange, required this.onFacturer, required this.onDelete});
+  const _CommandeDetail({required this.commande, required this.onEdit, required this.onStatutChange, required this.onFacturer, required this.onDelete});
 
   @override
   State<_CommandeDetail> createState() => _CommandeDetailState();
@@ -501,11 +534,74 @@ class _CommandeDetailState extends State<_CommandeDetail> {
         const SizedBox(height: 18),
         GoldButton(label: 'Facturer cette commande', onPressed: widget.onFacturer),
         const SizedBox(height: 10),
+        GhostButton(label: 'Modifier cette commande', onPressed: widget.onEdit),
+        const SizedBox(height: 10),
         TextButton(
           onPressed: widget.onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
           child: Text('Supprimer cette commande', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
+      ],
+    );
+  }
+}
+
+/// Aperçu du message avant envoi — modifiable, puis ouvre WhatsApp direct
+/// sur la conversation du client avec ce texte déjà rempli.
+class _MessageWhatsappForm extends StatefulWidget {
+  final String telephone;
+  final String messageInitial;
+  const _MessageWhatsappForm({required this.telephone, required this.messageInitial});
+
+  @override
+  State<_MessageWhatsappForm> createState() => _MessageWhatsappFormState();
+}
+
+class _MessageWhatsappFormState extends State<_MessageWhatsappForm> {
+  late final TextEditingController _messageCtrl;
+  bool _envoi = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageCtrl = TextEditingController(text: widget.messageInitial);
+  }
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ouvrir() async {
+    setState(() => _envoi = true);
+    final ok = await WhatsappService.ouvrirConversation(numero: widget.telephone, message: _messageCtrl.text.trim());
+    if (!mounted) return;
+    setState(() => _envoi = false);
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir WhatsApp — vérifiez que l'application est installée.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('La commande est marquée "Prête" — un message peut être envoyé au client sur WhatsApp (${widget.telephone}).',
+            style: TextStyle(color: context.textFaint, fontSize: 12.5)),
+        const SizedBox(height: 14),
+        Text('Message', style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        TextField(controller: _messageCtrl, maxLines: 5, decoration: const InputDecoration()),
+        const SizedBox(height: 18),
+        GoldButton(label: _envoi ? 'Ouverture…' : 'Ouvrir WhatsApp', icon: Icons.chat_bubble_outline, onPressed: _envoi ? () {} : _ouvrir),
+        const SizedBox(height: 10),
+        GhostButton(label: 'Ne pas envoyer maintenant', onPressed: () => Navigator.of(context).pop()),
       ],
     );
   }

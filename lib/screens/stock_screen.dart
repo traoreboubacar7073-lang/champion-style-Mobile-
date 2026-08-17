@@ -37,11 +37,11 @@ class _StockScreenState extends State<StockScreen> {
     });
   }
 
-  void _openAdd() async {
+  void _openAdd({StockItem? existing}) async {
     await showAppBottomSheet(
       context,
-      title: 'Nouvel article',
-      child: _StockForm(fournisseurs: _fournisseurs, onSaved: () { Navigator.of(context).pop(); _load(); }),
+      title: existing != null ? 'Modifier l\'article' : 'Nouvel article',
+      child: _StockForm(fournisseurs: _fournisseurs, existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
 
@@ -51,6 +51,10 @@ class _StockScreenState extends State<StockScreen> {
       title: item.nom,
       child: _StockDetail(
         item: item,
+        onEdit: () {
+          Navigator.of(context).pop();
+          _openAdd(existing: item);
+        },
         onReappro: () async {
           Navigator.of(context).pop();
           await showAppBottomSheet(
@@ -60,6 +64,8 @@ class _StockScreenState extends State<StockScreen> {
           );
         },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: item.nom, typeElement: 'cet article');
+          if (!confirme) return;
           await _repo.delete(item);
           if (!mounted) return;
           Navigator.of(context).pop();
@@ -125,8 +131,9 @@ class _StockScreenState extends State<StockScreen> {
 
 class _StockForm extends StatefulWidget {
   final List<Fournisseur> fournisseurs;
+  final StockItem? existing;
   final VoidCallback onSaved;
-  const _StockForm({required this.fournisseurs, required this.onSaved});
+  const _StockForm({required this.fournisseurs, this.existing, required this.onSaved});
 
   @override
   State<_StockForm> createState() => _StockFormState();
@@ -142,17 +149,43 @@ class _StockFormState extends State<_StockForm> {
   String _type = 'Tissu';
   bool _saving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nomCtrl.text = e.nom;
+      _qteCtrl.text = e.qte == e.qte.roundToDouble() ? e.qte.toStringAsFixed(0) : e.qte.toString();
+      _uniteCtrl.text = e.unite;
+      _seuilCtrl.text = e.seuil == e.seuil.roundToDouble() ? e.seuil.toStringAsFixed(0) : e.seuil.toString();
+      _fournisseur = e.fournisseur.isEmpty ? null : e.fournisseur;
+      _type = e.type;
+    }
+  }
+
   Future<void> _save() async {
     if (_nomCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await _repo.create(
-      nom: _nomCtrl.text.trim(),
-      type: _type,
-      qte: double.tryParse(_qteCtrl.text) ?? 0,
-      unite: _uniteCtrl.text.trim().isEmpty ? 'unités' : _uniteCtrl.text.trim(),
-      seuil: double.tryParse(_seuilCtrl.text) ?? 0,
-      fournisseur: _fournisseur ?? '',
-    );
+    if (widget.existing != null) {
+      final updated = StockItem(
+        id: widget.existing!.id,
+        nom: _nomCtrl.text.trim(), type: _type,
+        qte: double.tryParse(_qteCtrl.text) ?? 0,
+        unite: _uniteCtrl.text.trim().isEmpty ? 'unités' : _uniteCtrl.text.trim(),
+        seuil: double.tryParse(_seuilCtrl.text) ?? 0,
+        fournisseur: _fournisseur ?? '',
+      );
+      await _repo.update(updated);
+    } else {
+      await _repo.create(
+        nom: _nomCtrl.text.trim(),
+        type: _type,
+        qte: double.tryParse(_qteCtrl.text) ?? 0,
+        unite: _uniteCtrl.text.trim().isEmpty ? 'unités' : _uniteCtrl.text.trim(),
+        seuil: double.tryParse(_seuilCtrl.text) ?? 0,
+        fournisseur: _fournisseur ?? '',
+      );
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onSaved();
@@ -216,7 +249,7 @@ class _StockFormState extends State<_StockForm> {
           onChanged: (v) => setState(() => _fournisseur = v),
         ),
         const SizedBox(height: 20),
-        GoldButton(label: _saving ? 'Enregistrement…' : 'Enregistrer', onPressed: _saving ? () {} : _save),
+        GoldButton(label: _saving ? 'Enregistrement…' : (widget.existing != null ? 'Enregistrer les modifications' : 'Enregistrer'), onPressed: _saving ? () {} : _save),
       ],
     );
   }
@@ -224,9 +257,10 @@ class _StockFormState extends State<_StockForm> {
 
 class _StockDetail extends StatelessWidget {
   final StockItem item;
+  final VoidCallback onEdit;
   final VoidCallback onReappro;
   final VoidCallback onDelete;
-  const _StockDetail({required this.item, required this.onReappro, required this.onDelete});
+  const _StockDetail({required this.item, required this.onEdit, required this.onReappro, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -241,6 +275,8 @@ class _StockDetail extends StatelessWidget {
         ],
         const SizedBox(height: 16),
         GoldButton(label: 'Réapprovisionner', onPressed: onReappro),
+        const SizedBox(height: 10),
+        GhostButton(label: 'Modifier cet article', onPressed: onEdit),
         const SizedBox(height: 10),
         TextButton(
           onPressed: onDelete,

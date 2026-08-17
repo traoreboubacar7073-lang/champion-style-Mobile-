@@ -48,6 +48,13 @@ class _PaiementsScreenState extends State<PaiementsScreen> {
     if (result == true) _load();
   }
 
+  Future<void> _supprimerPaiement(Paiement p) async {
+    final confirme = await confirmDelete(context, nom: '${p.client} — ${fmtFcfa(p.montant)}', typeElement: 'ce paiement');
+    if (!confirme) return;
+    await _repo.delete(p);
+    _load();
+  }
+
   Future<void> _genererRecu(Paiement p) async {
     try {
       final bytes = await PdfService.buildRecuPdf(client: p.client, montant: p.montant, date: p.date, referenceFacture: p.reference.isEmpty ? null : p.reference);
@@ -92,6 +99,11 @@ class _PaiementsScreenState extends State<PaiementsScreen> {
                               onPressed: () => _genererRecu(p),
                               icon: const Icon(Icons.receipt_long_outlined, size: 19, color: AppColors.gold),
                               tooltip: 'Générer un reçu',
+                            ),
+                            IconButton(
+                              onPressed: () => _supprimerPaiement(p),
+                              icon: const Icon(Icons.delete_outline, size: 19, color: AppColors.rose),
+                              tooltip: 'Supprimer',
                             ),
                           ],
                         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'data/repository.dart';
 import 'theme/app_theme.dart';
 import 'screens/main_shell.dart';
+import 'screens/pin_lock_screen.dart';
 import 'services/route_observer.dart';
 
 void main() {
@@ -17,6 +18,10 @@ class ChampionsStyleApp extends StatefulWidget {
 }
 
 class _ChampionsStyleAppState extends State<ChampionsStyleApp> {
+  bool _verrouille = false;
+  String? _pinCode;
+  bool _pretAAfficher = false;
+
   @override
   void initState() {
     super.initState();
@@ -24,6 +29,17 @@ class _ChampionsStyleAppState extends State<ChampionsStyleApp> {
     // à chaque démarrage — comme sur les autres versions.
     TrashRepository().purgeExpired();
     _loadThemePreference();
+    _loadPin();
+  }
+
+  Future<void> _loadPin() async {
+    final pin = await ParametresRepository().getPinCode();
+    if (!mounted) return;
+    setState(() {
+      _pinCode = (pin != null && pin.isNotEmpty) ? pin : null;
+      _verrouille = _pinCode != null;
+      _pretAAfficher = true;
+    });
   }
 
   Future<void> _loadThemePreference() async {
@@ -54,7 +70,11 @@ class _ChampionsStyleAppState extends State<ChampionsStyleApp> {
                   debugShowCheckedModeBanner: false,
                   theme: AppTheme.build(dark: mode == ThemeMode.dark, police: police, scale: scale),
                   navigatorObservers: [routeObserver],
-                  home: const MainShell(),
+                  home: !_pretAAfficher
+                      ? const Scaffold(backgroundColor: AppColors.background, body: SizedBox.shrink())
+                      : (_verrouille && _pinCode != null)
+                          ? PinLockScreen(correctPin: _pinCode!, onUnlocked: () => setState(() => _verrouille = false))
+                          : const MainShell(),
                 );
               },
             );

@@ -184,6 +184,27 @@ class EmptyState extends StatelessWidget {
 /// une option "+ Autre" qui fait apparaître un champ libre pour les cas
 /// où l'élément n'existe pas encore dans le catalogue (ex : un client qui
 /// apporte son propre modèle, ou un tout nouveau fournisseur ponctuel).
+/// Demande confirmation avant une suppression — renvoie true si
+/// l'utilisateur confirme, false ou null sinon. Utilisé partout dans
+/// l'application avant de supprimer quoi que ce soit (l'élément reste de
+/// toute façon récupérable 30 jours via la Corbeille, mais ça évite les
+/// suppressions accidentelles par un tap malencontreux).
+Future<bool> confirmDelete(BuildContext context, {required String nom, String? typeElement}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: ctx.isDark ? AppColors.surface : AppColors.surfaceLightMode,
+      title: Text('Supprimer ${typeElement ?? "cet élément"} ?', style: TextStyle(color: ctx.textPrimary, fontSize: 16)),
+      content: Text('« $nom » sera déplacé dans la corbeille et pourra être restauré pendant 30 jours.', style: TextStyle(color: ctx.textMuted, fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler', style: TextStyle(color: ctx.textMuted))),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Supprimer', style: TextStyle(color: AppColors.rose, fontWeight: FontWeight.w600))),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 class CatalogPickerField extends StatefulWidget {
   final List<String> options;
   final String? initialValue;

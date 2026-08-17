@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/repository.dart';
 import '../models/client.dart';
 import '../models/employe.dart';
@@ -6,6 +7,8 @@ import '../models/mesures.dart';
 import '../models/modele.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
+import '../services/pdf_service.dart';
+import '../services/whatsapp_service.dart';
 
 class ClientsScreen extends StatefulWidget {
   const ClientsScreen({super.key});
@@ -74,6 +77,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
           _openAddSheet(editing: client);
         },
         onDelete: () async {
+          final confirme = await confirmDelete(context, nom: client.nom, typeElement: 'ce client');
+          if (!confirme) return;
           await _repo.delete(client);
           if (!mounted) return;
           Navigator.of(context).pop();
@@ -317,7 +322,11 @@ class _ClientFormState extends State<_ClientForm> {
                   child: TextField(
                     controller: _mesureCtrls[field.key],
                     keyboardType: field.isDash ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(hintText: field.label),
+                    // labelText (plutôt que hintText) reste toujours visible,
+                    // même une fois qu'un chiffre est saisi — pour ne jamais
+                    // perdre de vue à quelle mesure (L, P, TT...) correspond
+                    // chaque champ une fois la grille remplie.
+                    decoration: InputDecoration(labelText: field.label),
                   ),
                 ),
             ],
@@ -421,14 +430,39 @@ class _ClientFormState extends State<_ClientForm> {
   }
 }
 
-class _ClientDetail extends StatelessWidget {
+class _ClientDetail extends StatefulWidget {
   final Client client;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   const _ClientDetail({required this.client, required this.onEdit, required this.onDelete});
 
   @override
+  State<_ClientDetail> createState() => _ClientDetailState();
+}
+
+class _ClientDetailState extends State<_ClientDetail> {
+  bool _generating = false;
+
+  Future<void> _partagerFiche() async {
+    setState(() => _generating = true);
+    try {
+      final bytes = await PdfService.buildFicheMesuresPdf(
+        client: widget.client.nom, sexe: widget.client.sexe,
+        mesures: widget.client.mesures, labels: MesuresGrilles.labels,
+      );
+      await PdfService.shareOrDownload(bytes, 'Mesures_${widget.client.nom.replaceAll(' ', '_')}.pdf');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Une erreur est survenue lors de la génération du document.')));
+      }
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final client = widget.client;
     final mesuresRenseignees = client.mesures.entries.where((e) {
       final v = e.value;
       if (v is num) return v != 0;
@@ -453,15 +487,44 @@ class _ClientDetail extends StatelessWidget {
             ],
           ],
         ),
+        if (client.tel.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => launchUrl(Uri.parse('tel:${client.tel}')),
+                  icon: const Icon(Icons.call_outlined, size: 16, color: AppColors.deepGreen),
+                  label: const Text('Appeler', style: TextStyle(color: AppColors.deepGreen, fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.deepGreen), padding: const EdgeInsets.symmetric(vertical: 10)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => WhatsappService.ouvrirConversation(numero: client.tel, message: 'Bonjour ${client.nom},'),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 16, color: AppColors.gold),
+                  label: const Text('WhatsApp', style: TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.gold), padding: const EdgeInsets.symmetric(vertical: 10)),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 14),
-        GhostButton(label: 'Modifier ce client', onPressed: onEdit),
+        GhostButton(label: 'Modifier ce client', onPressed: widget.onEdit),
         const SizedBox(height: 18),
-        Text('FICHE DE MESURES (CM)${client.sexe.isNotEmpty ? ' — ${client.sexe.toUpperCase()}' : ''}',
-            style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('FICHE DE MESURES (CM)${client.sexe.isNotEmpty ? ' — ${client.sexe.toUpperCase()}' : ''}',
+                style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+          ],
+        ),
         const SizedBox(height: 10),
         if (mesuresRenseignees.isEmpty)
           Text('Aucune mesure enregistrée pour ce client.', style: TextStyle(color: context.textFaint, fontSize: 13))
-        else
+        else ...[
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -482,9 +545,15 @@ class _ClientDetail extends StatelessWidget {
                 ),
             ],
           ),
+          const SizedBox(height: 14),
+          if (_generating)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Center(child: CircularProgressIndicator(color: AppColors.gold)))
+          else
+            GhostButton(label: 'Partager la fiche de mesures (PDF)', onPressed: _partagerFiche),
+        ],
         const SizedBox(height: 20),
         TextButton(
-          onPressed: onDelete,
+          onPressed: widget.onDelete,
           style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
           child: Text('Supprimer ce client', style: TextStyle(fontWeight: FontWeight.w600)),
         ),

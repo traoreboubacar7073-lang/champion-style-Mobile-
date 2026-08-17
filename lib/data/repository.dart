@@ -13,6 +13,7 @@ import '../models/stock.dart';
 import '../models/devis.dart';
 import '../models/fournisseur.dart';
 import '../models/employe.dart';
+import '../models/boutique.dart';
 
 /// Un élément dans la corbeille — garde le nom de la table d'origine et
 /// le contenu complet de la ligne, pour pouvoir la restaurer telle quelle.
@@ -320,6 +321,11 @@ class StockRepository {
     await db.update('stock', {'qte': nouvelleQte}, where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<void> update(StockItem item) async {
+    final db = await _db;
+    await db.update('stock', item.toMap(), where: 'id = ?', whereArgs: [item.id]);
+  }
+
   Future<void> delete(StockItem item) async {
     final db = await _db;
     await _trash.moveToTrash('stock', item.toMap());
@@ -351,6 +357,11 @@ class ModeleRepository {
     return m;
   }
 
+  Future<void> update(Modele m) async {
+    final db = await _db;
+    await db.update('modeles', m.toMap(), where: 'id = ?', whereArgs: [m.id]);
+  }
+
   Future<void> delete(Modele m) async {
     final db = await _db;
     await _trash.moveToTrash('modeles', m.toMap());
@@ -376,6 +387,11 @@ class DevisRepository {
     return d;
   }
 
+  Future<void> update(Devis d) async {
+    final db = await _db;
+    await db.update('devis', d.toMap(), where: 'id = ?', whereArgs: [d.id]);
+  }
+
   Future<void> delete(Devis d) async {
     final db = await _db;
     await _trash.moveToTrash('devis', d.toMap());
@@ -399,6 +415,11 @@ class FournisseurRepository {
     final f = Fournisseur(id: id, nom: nom, contact: contact, ville: ville);
     await db.insert('fournisseurs', f.toMap());
     return f;
+  }
+
+  Future<void> update(Fournisseur f) async {
+    final db = await _db;
+    await db.update('fournisseurs', f.toMap(), where: 'id = ?', whereArgs: [f.id]);
   }
 
   Future<void> delete(Fournisseur f) async {
@@ -435,6 +456,11 @@ class EmployeRepository {
     return e;
   }
 
+  Future<void> update(Employe e) async {
+    final db = await _db;
+    await db.update('employes', e.toMap(), where: 'id = ?', whereArgs: [e.id]);
+  }
+
   Future<void> delete(Employe e) async {
     final db = await _db;
     await _trash.moveToTrash('employes', e.toMap());
@@ -462,6 +488,74 @@ class PaiementEmployeRepository {
     final p = PaiementEmploye(id: id, employe: employe, montant: montant, mode: mode, periode: periode, date: _todayFr());
     await db.insert('paiements_employes', p.toMap());
     return p;
+  }
+}
+
+class ArticleBoutiqueRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<ArticleBoutique>> all() async {
+    final db = await _db;
+    final rows = await db.query('articles_boutique', orderBy: 'rowid DESC');
+    return rows.map((r) => ArticleBoutique.fromMap(r)).toList();
+  }
+
+  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0}) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'articles_boutique');
+    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix);
+    await db.insert('articles_boutique', a.toMap());
+    return a;
+  }
+
+  Future<void> delete(ArticleBoutique a) async {
+    final db = await _db;
+    await _trash.moveToTrash('articles_boutique', a.toMap());
+    await db.delete('articles_boutique', where: 'id = ?', whereArgs: [a.id]);
+  }
+}
+
+class VenteBoutiqueRepository {
+  Future<Database> get _db async => AppDatabase.instance.database;
+  final _trash = TrashRepository();
+
+  Future<List<VenteBoutique>> all() async {
+    final db = await _db;
+    final rows = await db.query('ventes_boutique', orderBy: 'rowid DESC');
+    return rows.map((r) => VenteBoutique.fromMap(r)).toList();
+  }
+
+  /// Enregistre une vente comptoir et l'ajoute automatiquement au registre
+  /// des paiements, exactement comme demandé — aucune saisie séparée
+  /// n'est nécessaire pour que la rentrée d'argent apparaisse dans les
+  /// paiements et donc dans les rapports financiers.
+  Future<VenteBoutique> create({
+    required String article,
+    required String categorie,
+    double prixUnitaire = 0,
+    double quantite = 1,
+    String mode = 'Espèces',
+  }) async {
+    final db = await _db;
+    final id = await IdGenerator.next(db, 'ventes_boutique');
+    final montant = prixUnitaire * quantite;
+    final v = VenteBoutique(id: id, article: article, categorie: categorie, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
+    await db.insert('ventes_boutique', v.toMap());
+    await PaiementRepository().create(client: 'Vente boutique', montant: montant, mode: mode, reference: v.id);
+    return v;
+  }
+
+  Future<void> delete(VenteBoutique v) async {
+    final db = await _db;
+    await _trash.moveToTrash('ventes_boutique', v.toMap());
+    await db.delete('ventes_boutique', where: 'id = ?', whereArgs: [v.id]);
+    // Le paiement créé automatiquement à la vente est retiré en même
+    // temps, pour que les deux restent toujours cohérents entre eux.
+    final paiementsLies = await db.query('paiements', where: 'reference = ?', whereArgs: [v.id]);
+    for (final row in paiementsLies) {
+      await db.delete('paiements', where: 'id = ?', whereArgs: [row['id']]);
+    }
   }
 }
 
@@ -529,6 +623,16 @@ class ParametresRepository {
   Future<void> setTailleTexte(String taille) async {
     final db = await _db;
     await db.update('parametres', {'tailleTexte': taille}, where: 'id = 1');
+  }
+
+  Future<String?> getPinCode() async {
+    final row = await get();
+    return row['pinCode'] as String?;
+  }
+
+  Future<void> setPinCode(String? pin) async {
+    final db = await _db;
+    await db.update('parametres', {'pinCode': pin}, where: 'id = 1');
   }
 
   Future<Map<String, dynamic>> getBusinessOverride() async {
