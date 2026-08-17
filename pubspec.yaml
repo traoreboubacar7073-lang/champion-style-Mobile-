@@ -44,6 +44,14 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
 
+# Une dépendance interne partagée par plusieurs extensions
+# (flutter_plugin_android_lifecycle) a très récemment relevé sa propre
+# exigence à l'API Android 36, ce qui fait échouer la compilation. On
+# fixe ici une version un peu plus ancienne mais parfaitement stable et
+# fonctionnelle, publiée avant ce changement.
+dependency_overrides:
+  flutter_plugin_android_lifecycle: 2.0.28
+
 flutter:
   uses-material-design: true
   assets:

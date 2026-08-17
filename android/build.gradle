@@ -13,21 +13,6 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Certaines extensions (ex : file_picker) sont compilées avec leur propre
-// valeur par défaut fournie par Flutter, indépendante de la configuration
-// de notre application — cette valeur par défaut est parfois trop basse
-// pour leurs propres dépendances. On force donc ici la même version des
-// API Android (36) pour tous les modules d'extensions du projet.
-// "plugins.withId" (plutôt que "afterEvaluate") évite tout problème de
-// séquencement, quel que soit le moment où chaque module est évalué.
-subprojects {
-    plugins.withId("com.android.library") {
-        android {
-            compileSdkVersion 36
-        }
-    }
-}
-
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
