@@ -5,6 +5,7 @@ import '../models/facture.dart';
 import '../models/client.dart';
 import '../models/modele.dart';
 import '../models/stock.dart';
+import '../models/depense.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 import '../widgets/mini_charts.dart';
@@ -14,7 +15,20 @@ import 'factures_screen.dart';
 import 'produits_screen.dart';
 import 'stock_screen.dart';
 import 'rapports_screen.dart';
+import 'depenses_screen.dart';
 import '../services/route_observer.dart';
+
+const List<String> _moisAbbrDashboard = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+DateTime? _parseFrDateDashboard(String s) {
+  final parts = s.trim().split(RegExp(r'\s+'));
+  if (parts.length != 3) return null;
+  final day = int.tryParse(parts[0]);
+  final monthIdx = _moisAbbrDashboard.indexOf(parts[1]);
+  final year = int.tryParse(parts[2]);
+  if (day == null || monthIdx == -1 || year == null) return null;
+  return DateTime(year, monthIdx + 1, day);
+}
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,6 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
   List<StockItem> _stock = [];
   double _totalPaiements = 0;
   double _totalDepenses = 0;
+  double _depensesDuMois = 0;
   bool _loading = true;
 
   @override
@@ -86,8 +101,20 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
       _stock = stock;
       _totalPaiements = paiements.fold(0, (s, p) => s + p.montant);
       _totalDepenses = depenses.fold(0.0, (s, d) => s + d.montantVerse);
+      _depensesDuMois = _sommeDuMois(depenses);
       _loading = false;
     });
+  }
+
+  double _sommeDuMois(List<Depense> depenses) {
+    final now = DateTime.now();
+    final debutMois = DateTime(now.year, now.month, 1);
+    double total = 0;
+    for (final d in depenses) {
+      final date = _parseFrDateDashboard(d.date);
+      if (date != null && !date.isBefore(debutMois)) total += d.montantVerse;
+    }
+    return total;
   }
 
   void _push(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
@@ -158,6 +185,8 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                 _KpiCard(label: 'Clients enregistrés', value: '${_clients.length}', icon: Icons.people_outline, color: AppColors.purple, onTap: () => _push(const ClientsScreen())),
                 const SizedBox(width: 12),
                 _KpiCard(label: 'Paiements reçus', value: fmtFcfa(_totalPaiements), icon: Icons.account_balance_wallet_outlined, color: AppColors.gold, onTap: () => _push(const RapportsScreen())),
+                const SizedBox(width: 12),
+                _KpiCard(label: 'Dépenses (mois)', value: fmtFcfa(_depensesDuMois), icon: Icons.trending_down, color: AppColors.rose, onTap: () => _push(const DepensesScreen())),
                 const SizedBox(width: 12),
                 _KpiCard(
                   label: 'Bénéfice (total)', value: fmtFcfa(benefice.abs()), icon: Icons.bar_chart_rounded,

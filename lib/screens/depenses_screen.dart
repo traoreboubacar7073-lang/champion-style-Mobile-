@@ -12,6 +12,41 @@ const List<String> categoriesDepense = [
   'Publicité / marketing', 'Emballages / étiquettes', 'Taxes / impôts', 'Autre',
 ];
 
+const List<String> _moisAbbrDepenses = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+DateTime? _parseFrDateDepenses(String s) {
+  final parts = s.trim().split(RegExp(r'\s+'));
+  if (parts.length != 3) return null;
+  final day = int.tryParse(parts[0]);
+  final monthIdx = _moisAbbrDepenses.indexOf(parts[1]);
+  final year = int.tryParse(parts[2]);
+  if (day == null || monthIdx == -1 || year == null) return null;
+  return DateTime(year, monthIdx + 1, day);
+}
+
+class _TotauxDepenses {
+  final double semaine;
+  final double mois;
+  final double annee;
+  const _TotauxDepenses(this.semaine, this.mois, this.annee);
+}
+
+_TotauxDepenses _computeTotauxDepenses(List<Depense> depenses) {
+  final now = DateTime.now();
+  final startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+  final startOfMonth = DateTime(now.year, now.month, 1);
+  final startOfYear = DateTime(now.year, 1, 1);
+  double semaine = 0, mois = 0, annee = 0;
+  for (final d in depenses) {
+    final date = _parseFrDateDepenses(d.date);
+    if (date == null) continue;
+    if (!date.isBefore(startOfYear)) annee += d.montantVerse;
+    if (!date.isBefore(startOfMonth)) mois += d.montantVerse;
+    if (!date.isBefore(startOfWeek)) semaine += d.montantVerse;
+  }
+  return _TotauxDepenses(semaine, mois, annee);
+}
+
 class DepensesScreen extends StatefulWidget {
   const DepensesScreen({super.key});
 
@@ -76,20 +111,32 @@ class _DepensesScreenState extends State<DepensesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final totaux = _computeTotauxDepenses(_depenses);
     return Scaffold(
       appBar: AppBar(title: const Text('Dépenses')),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
-            : _depenses.isEmpty
-                ? const EmptyState(icon: Icons.account_balance_wallet_outlined, text: 'Aucune dépense enregistrée.')
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _depenses.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (ctx, i) {
-                      final d = _depenses[i];
-                      return AppCard(
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: _MiniTotalDepense(label: 'Semaine', value: fmtFcfa(totaux.semaine))),
+                      const SizedBox(width: 8),
+                      Expanded(child: _MiniTotalDepense(label: 'Mois', value: fmtFcfa(totaux.mois))),
+                      const SizedBox(width: 8),
+                      Expanded(child: _MiniTotalDepense(label: 'Année', value: fmtFcfa(totaux.annee))),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  if (_depenses.isEmpty)
+                    const EmptyState(icon: Icons.account_balance_wallet_outlined, text: 'Aucune dépense enregistrée.')
+                  else
+                    ..._depenses.map((d) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: AppCard(
                         onTap: () => _openDetail(d),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,9 +171,11 @@ class _DepensesScreenState extends State<DepensesScreen> {
                             ],
                           ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAdd,
@@ -268,6 +317,27 @@ class _DepenseDetail extends StatelessWidget {
           child: const Text('Supprimer cette dépense', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
       ],
+    );
+  }
+}
+
+class _MiniTotalDepense extends StatelessWidget {
+  final String label;
+  final String value;
+  const _MiniTotalDepense({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 3),
+          Text(label, style: TextStyle(color: context.textFaint, fontSize: 9.5), textAlign: TextAlign.center),
+        ],
+      ),
     );
   }
 }
