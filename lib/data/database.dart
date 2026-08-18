@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(dbPath, 'champions_style.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -55,6 +55,12 @@ class AppDatabase {
       await db.execute("ALTER TABLE articles_boutique ADD COLUMN taille TEXT DEFAULT ''");
       await db.execute("ALTER TABLE ventes_boutique ADD COLUMN taille TEXT DEFAULT ''");
     }
+    if (oldVersion < 6) {
+      // Suivi de la quantité en stock de chaque article de boutique — les
+      // articles déjà enregistrés démarrent à 0 (à ajuster ensuite via
+      // "Réapprovisionner").
+      await db.execute("ALTER TABLE articles_boutique ADD COLUMN qte REAL DEFAULT 0");
+    }
   }
 
   /// Articles vendus directement en boutique (tissus, montres, parfums,
@@ -68,7 +74,8 @@ class AppDatabase {
         categorie TEXT NOT NULL,
         prix REAL DEFAULT 0,
         photo TEXT DEFAULT '',
-        taille TEXT DEFAULT ''
+        taille TEXT DEFAULT '',
+        qte REAL DEFAULT 0
       )
     ''');
     await db.execute('''

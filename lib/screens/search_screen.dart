@@ -183,7 +183,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         if (_fournisseurResults.isNotEmpty) ..._section(context, 'Fournisseurs', Icons.local_shipping_outlined, [
                           for (final f in _fournisseurResults) _ResultTile(title: f.nom, subtitle: f.ville, onTap: () => Navigator.pop(context)),
                         ]),
-                        if (_modeleResults.isNotEmpty) ..._section(context, 'Produits & Services', Icons.checkroom_outlined, [
+                        if (_modeleResults.isNotEmpty) ..._section(context, 'Modèles de couture', Icons.checkroom_outlined, [
                           for (final m in _modeleResults) _ResultTile(title: m.nom, subtitle: '${m.categorie} · ${fmtFcfa(m.prix)}', onTap: () => Navigator.pop(context)),
                         ]),
                         if (_stockResults.isNotEmpty) ..._section(context, 'Stock & Matières', Icons.inventory_2_outlined, [

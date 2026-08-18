@@ -276,7 +276,7 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
             ),
           const SizedBox(height: 22),
 
-          _SectionTitle(title: 'Top Produits & Services', onVoirTout: () => _push(const ProduitsScreen())),
+          _SectionTitle(title: 'Top Modèles de couture', onVoirTout: () => _push(const ProduitsScreen())),
           const SizedBox(height: 10),
           if (topProduits.isEmpty)
             const EmptyState(icon: Icons.checkroom_outlined, text: 'Aucun produit vendu pour le moment.')

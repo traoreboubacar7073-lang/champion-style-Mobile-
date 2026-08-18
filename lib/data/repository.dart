@@ -501,10 +501,10 @@ class ArticleBoutiqueRepository {
     return rows.map((r) => ArticleBoutique.fromMap(r)).toList();
   }
 
-  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0, String photo = '', String taille = ''}) async {
+  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0, String photo = '', String taille = '', double qte = 0}) async {
     final db = await _db;
     final id = await IdGenerator.next(db, 'articles_boutique');
-    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix, photo: photo, taille: taille);
+    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix, photo: photo, taille: taille, qte: qte);
     await db.insert('articles_boutique', a.toMap());
     return a;
   }
@@ -512,6 +512,19 @@ class ArticleBoutiqueRepository {
   Future<void> update(ArticleBoutique a) async {
     final db = await _db;
     await db.update('articles_boutique', a.toMap(), where: 'id = ?', whereArgs: [a.id]);
+  }
+
+  /// Ajoute (ou retire, avec un delta négatif) une quantité au stock d'un
+  /// article — jamais en dessous de zéro. Utilisé à la fois pour le
+  /// réapprovisionnement manuel et pour la déduction automatique lors
+  /// d'une vente.
+  Future<void> ajusterStock(String nomArticle, double delta) async {
+    final db = await _db;
+    final rows = await db.query('articles_boutique', where: 'nom = ?', whereArgs: [nomArticle], limit: 1);
+    if (rows.isEmpty) return;
+    final actuel = (rows.first['qte'] as num?)?.toDouble() ?? 0;
+    final nouveau = (actuel + delta) < 0 ? 0.0 : actuel + delta;
+    await db.update('articles_boutique', {'qte': nouveau}, where: 'nom = ?', whereArgs: [nomArticle]);
   }
 
   Future<void> delete(ArticleBoutique a) async {
@@ -549,6 +562,9 @@ class VenteBoutiqueRepository {
     final v = VenteBoutique(id: id, article: article, categorie: categorie, taille: taille, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
     await db.insert('ventes_boutique', v.toMap());
     await PaiementRepository().create(client: 'Vente boutique', montant: montant, mode: mode, reference: v.id);
+    // La quantité vendue est retirée automatiquement du stock de
+    // l'article correspondant, si celui-ci existe dans le catalogue.
+    await ArticleBoutiqueRepository().ajusterStock(article, -quantite);
     return v;
   }
 
@@ -562,6 +578,8 @@ class VenteBoutiqueRepository {
     for (final row in paiementsLies) {
       await db.delete('paiements', where: 'id = ?', whereArgs: [row['id']]);
     }
+    // La quantité vendue est restituée au stock de l'article.
+    await ArticleBoutiqueRepository().ajusterStock(v.article, v.quantite);
   }
 }
 

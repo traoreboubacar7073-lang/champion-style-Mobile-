@@ -5,8 +5,9 @@ class ArticleBoutique {
   final double prix;
   final String photo;
   final String taille;
+  final double qte;
 
-  ArticleBoutique({required this.id, required this.nom, required this.categorie, this.prix = 0, this.photo = '', this.taille = ''});
+  ArticleBoutique({required this.id, required this.nom, required this.categorie, this.prix = 0, this.photo = '', this.taille = '', this.qte = 0});
 
   factory ArticleBoutique.fromMap(Map<String, dynamic> map) => ArticleBoutique(
         id: map['id'] as String,
@@ -15,9 +16,10 @@ class ArticleBoutique {
         prix: (map['prix'] as num?)?.toDouble() ?? 0,
         photo: map['photo'] as String? ?? '',
         taille: map['taille'] as String? ?? '',
+        qte: (map['qte'] as num?)?.toDouble() ?? 0,
       );
 
-  Map<String, dynamic> toMap() => {'id': id, 'nom': nom, 'categorie': categorie, 'prix': prix, 'photo': photo, 'taille': taille};
+  Map<String, dynamic> toMap() => {'id': id, 'nom': nom, 'categorie': categorie, 'prix': prix, 'photo': photo, 'taille': taille, 'qte': qte};
 }
 
 class VenteBoutique {

@@ -35,7 +35,7 @@ class DrawerItem {
 /// propre couleur, pour que les tuiles du menu "Plus" soient visuellement
 /// distinctes d'un coup d'œil.
 final List<DrawerItem> drawerItems = [
-  DrawerItem('Produits & Services', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
+  DrawerItem('Modèles de couture', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
   DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const DevisScreen()),
   DrawerItem('Calendrier', Icons.calendar_month_outlined, AppColors.purple, (_) => const CalendrierScreen()),
   DrawerItem('Paiements', Icons.credit_card_outlined, AppColors.deepGreen, (_) => const PaiementsScreen()),

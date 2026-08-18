@@ -37,7 +37,7 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
   void _openAdd({Modele? existing}) async {
     await showAppBottomSheet(
       context,
-      title: existing != null ? 'Modifier le produit' : 'Nouveau produit',
+      title: existing != null ? 'Modifier le modèle' : 'Nouveau modèle',
       child: _ModeleForm(existing: existing, onSaved: () { Navigator.of(context).pop(); _load(); }),
     );
   }
@@ -59,11 +59,11 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
           const SizedBox(height: 4),
           Text(fmtFcfa(m.prix), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 20)),
           const SizedBox(height: 18),
-          GhostButton(label: 'Modifier ce produit', onPressed: () { Navigator.of(context).pop(); _openAdd(existing: m); }),
+          GhostButton(label: 'Modifier ce modèle', onPressed: () { Navigator.of(context).pop(); _openAdd(existing: m); }),
           const SizedBox(height: 10),
           TextButton(
             onPressed: () async {
-              final confirme = await confirmDelete(context, nom: m.nom, typeElement: 'ce produit');
+              final confirme = await confirmDelete(context, nom: m.nom, typeElement: 'ce modèle');
               if (!confirme) return;
               await _repo.delete(m);
               if (!mounted) return;
@@ -71,7 +71,7 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
               _load();
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.rose, padding: EdgeInsets.zero, alignment: Alignment.centerLeft),
-            child: const Text('Supprimer ce produit', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Text('Supprimer ce modèle', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -81,12 +81,12 @@ class _ProduitsScreenState extends State<ProduitsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Produits & Services')),
+      appBar: AppBar(title: const Text('Modèles de couture')),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
             : _modeles.isEmpty
-                ? const EmptyState(icon: Icons.checkroom_outlined, text: 'Aucun produit pour le moment.')
+                ? const EmptyState(icon: Icons.checkroom_outlined, text: 'Aucun modèle pour le moment.')
                 : GridView.builder(
                     padding: const EdgeInsets.all(16),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
