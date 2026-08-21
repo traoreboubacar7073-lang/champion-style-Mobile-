@@ -66,12 +66,14 @@ class _MainShellState extends State<MainShell> {
   // données les plus récentes à chaque fois qu'on y retourne. C'est ce qui
   // garantit qu'un client ajouté apparaît bien dans le formulaire de
   // commande, qu'une commande facturée apparaît dans les factures, etc.
-  // Ordre voulu : Commandes, Clients, Accueil (au milieu), Boutique, Plus.
+  // Ordre voulu : Accueil en premier (page principale, ouverte par défaut
+  // à chaque démarrage puisque _index vaut 0), puis Commandes, Clients,
+  // Boutique, Plus.
   Widget _currentTab() {
     switch (_index) {
-      case 0: return const CommandesScreen();
-      case 1: return const ClientsScreen();
-      case 2: return const DashboardScreen();
+      case 0: return const DashboardScreen();
+      case 1: return const CommandesScreen();
+      case 2: return const ClientsScreen();
       case 3: return const BoutiqueScreen();
       default: return const _PlusGrid();
     }
@@ -117,9 +119,9 @@ class _MainShellState extends State<MainShell> {
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Accueil'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), label: 'Commandes'),
           BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Clients'),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Accueil'),
           BottomNavigationBarItem(icon: Icon(Icons.storefront_outlined), label: 'Boutique'),
           BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Plus'),
         ],
@@ -163,9 +165,9 @@ class _AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   const _DrawerSectionLabel('Menu principal'),
-                  _DrawerTile(icon: Icons.shopping_bag_outlined, label: 'Commandes', onTap: () { Navigator.pop(context); onSelectTab(0); }),
-                  _DrawerTile(icon: Icons.people_outline, label: 'Clients', onTap: () { Navigator.pop(context); onSelectTab(1); }),
-                  _DrawerTile(icon: Icons.grid_view_rounded, label: 'Tableau de bord', onTap: () { Navigator.pop(context); onSelectTab(2); }),
+                  _DrawerTile(icon: Icons.grid_view_rounded, label: 'Tableau de bord', onTap: () { Navigator.pop(context); onSelectTab(0); }),
+                  _DrawerTile(icon: Icons.shopping_bag_outlined, label: 'Commandes', onTap: () { Navigator.pop(context); onSelectTab(1); }),
+                  _DrawerTile(icon: Icons.people_outline, label: 'Clients', onTap: () { Navigator.pop(context); onSelectTab(2); }),
                   _DrawerTile(icon: Icons.storefront_outlined, label: 'Boutique', onTap: () { Navigator.pop(context); onSelectTab(3); }),
                   _DrawerTile(icon: Icons.receipt_long_outlined, label: 'Factures', onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen())); }),
                   for (final item in drawerItems)
@@ -271,7 +273,7 @@ class _NotificationBellState extends State<_NotificationBell> {
                     child: InkWell(
                       onTap: () {
                         Navigator.of(context).pop();
-                        final index = {'commandes': 0}[a.cible];
+                        final index = {'commandes': 1}[a.cible];
                         if (index != null) {
                           widget.onSelectTab(index);
                         } else {

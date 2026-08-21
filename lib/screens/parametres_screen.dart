@@ -504,6 +504,7 @@ class _RestaurationFormState extends State<_RestaurationForm> {
 
   Future<void> _collerDepuisPressePapier() async {
     final data = await Clipboard.getData('text/plain');
+    if (!mounted) return;
     if (data?.text != null) {
       setState(() => _texteCtrl.text = data!.text!);
     }
@@ -536,6 +537,7 @@ class _RestaurationFormState extends State<_RestaurationForm> {
         widget.onSuccess();
       }
     } catch (_) {
+      if (!mounted) return;
       setState(() => _erreur = "Ce contenu n'a pas pu être lu — vérifie qu'il s'agit bien d'une sauvegarde Champions Style complète.");
     } finally {
       if (mounted) setState(() => _enCours = false);

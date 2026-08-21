@@ -189,8 +189,9 @@ class _DashboardScreenState extends State<DashboardScreen> with RouteAware {
                 _KpiCard(label: 'Dépenses (mois)', value: fmtFcfa(_depensesDuMois), icon: Icons.trending_down, color: AppColors.rose, onTap: () => _push(const DepensesScreen())),
                 const SizedBox(width: 12),
                 _KpiCard(
-                  label: 'Bénéfice (total)', value: fmtFcfa(benefice.abs()), icon: Icons.bar_chart_rounded,
-                  color: enBenefice ? AppColors.deepGreen : AppColors.rose, badge: enBenefice ? '🟢' : '🔴',
+                  label: 'Bénéfice (total)', value: fmtFcfa(benefice.abs()),
+                  icon: enBenefice ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                  color: enBenefice ? AppColors.deepGreen : AppColors.rose,
                   onTap: () => _push(const RapportsScreen()),
                 ),
                 const SizedBox(width: 12),
@@ -397,10 +398,9 @@ class _KpiCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  final String? badge;
   final VoidCallback onTap;
 
-  const _KpiCard({required this.label, required this.value, required this.icon, required this.color, this.badge, required this.onTap});
+  const _KpiCard({required this.label, required this.value, required this.icon, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -418,16 +418,10 @@ class _KpiCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 34, height: 34,
-                  decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                  child: Icon(icon, size: 17, color: color),
-                ),
-                if (badge != null) Text(badge!, style: const TextStyle(fontSize: 13)),
-              ],
+            Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, size: 17, color: color),
             ),
             const Spacer(),
             Text(value, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700, fontSize: 17), overflow: TextOverflow.ellipsis, maxLines: 1),

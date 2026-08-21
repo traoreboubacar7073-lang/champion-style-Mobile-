@@ -191,7 +191,7 @@ class _RapportsScreenState extends State<RapportsScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Bénéfice ${benefice >= 0 ? "🟢" : "🔴"}', style: TextStyle(color: context.textFaint, fontSize: 12)),
+                            Text('Bénéfice', style: TextStyle(color: context.textFaint, fontSize: 12)),
                             const SizedBox(height: 4),
                             Text(fmtFcfa(benefice.abs()), style: TextStyle(color: benefice >= 0 ? AppColors.deepGreen : AppColors.rose, fontSize: 20, fontWeight: FontWeight.w700)),
                           ],

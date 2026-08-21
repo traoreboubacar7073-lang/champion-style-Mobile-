@@ -269,7 +269,7 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                     style: TextStyle(color: context.textFaint, fontSize: 12, fontStyle: FontStyle.italic),
                   ),
                   const SizedBox(height: 14),
-                  GoldButton(label: '💰  Vendre un article', onPressed: _ouvrirVente),
+                  GoldButton(label: 'Vendre un article', icon: Icons.point_of_sale_outlined, onPressed: _ouvrirVente),
                   const SizedBox(height: 20),
                   Row(
                     children: [
