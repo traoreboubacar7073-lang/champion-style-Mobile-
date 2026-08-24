@@ -501,10 +501,10 @@ class ArticleBoutiqueRepository {
     return rows.map((r) => ArticleBoutique.fromMap(r)).toList();
   }
 
-  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0, String photo = '', String taille = '', double qte = 0}) async {
+  Future<ArticleBoutique> create({required String nom, required String categorie, double prix = 0, String photo = '', String taille = '', String couleur = '', double qte = 0}) async {
     final db = await _db;
     final id = await IdGenerator.next(db, 'articles_boutique');
-    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix, photo: photo, taille: taille, qte: qte);
+    final a = ArticleBoutique(id: id, nom: nom, categorie: categorie, prix: prix, photo: photo, taille: taille, couleur: couleur, qte: qte);
     await db.insert('articles_boutique', a.toMap());
     return a;
   }
@@ -552,6 +552,7 @@ class VenteBoutiqueRepository {
     required String article,
     required String categorie,
     String taille = '',
+    String couleur = '',
     double prixUnitaire = 0,
     double quantite = 1,
     String mode = 'Espèces',
@@ -559,7 +560,7 @@ class VenteBoutiqueRepository {
     final db = await _db;
     final id = await IdGenerator.next(db, 'ventes_boutique');
     final montant = prixUnitaire * quantite;
-    final v = VenteBoutique(id: id, article: article, categorie: categorie, taille: taille, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
+    final v = VenteBoutique(id: id, article: article, categorie: categorie, taille: taille, couleur: couleur, prixUnitaire: prixUnitaire, quantite: quantite, montant: montant, date: _todayFr());
     await db.insert('ventes_boutique', v.toMap());
     await PaiementRepository().create(client: 'Vente boutique', montant: montant, mode: mode, reference: v.id);
     // La quantité vendue est retirée automatiquement du stock de

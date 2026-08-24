@@ -26,7 +26,7 @@ class AppDatabase {
     final path = join(dbPath, 'champions_style.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -61,6 +61,13 @@ class AppDatabase {
       // "Réapprovisionner").
       await db.execute("ALTER TABLE articles_boutique ADD COLUMN qte REAL DEFAULT 0");
     }
+    if (oldVersion < 7) {
+      // Couleur des articles de boutique (choisie via une palette plutôt
+      // que tapée) — conservée aussi sur chaque vente, pour garder une
+      // trace de la couleur réellement vendue dans l'historique.
+      await db.execute("ALTER TABLE articles_boutique ADD COLUMN couleur TEXT DEFAULT ''");
+      await db.execute("ALTER TABLE ventes_boutique ADD COLUMN couleur TEXT DEFAULT ''");
+    }
   }
 
   /// Articles vendus directement en boutique (tissus, montres, parfums,
@@ -75,6 +82,7 @@ class AppDatabase {
         prix REAL DEFAULT 0,
         photo TEXT DEFAULT '',
         taille TEXT DEFAULT '',
+        couleur TEXT DEFAULT '',
         qte REAL DEFAULT 0
       )
     ''');
@@ -84,6 +92,7 @@ class AppDatabase {
         article TEXT NOT NULL,
         categorie TEXT NOT NULL,
         taille TEXT DEFAULT '',
+        couleur TEXT DEFAULT '',
         prixUnitaire REAL DEFAULT 0,
         quantite REAL DEFAULT 1,
         montant REAL DEFAULT 0,

@@ -129,6 +129,22 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
     );
   }
 
+  /// Vente rapide déclenchée en touchant directement un article du
+  /// catalogue — pas besoin de rechercher l'article dans une liste, le
+  /// formulaire s'ouvre déjà pré-rempli avec sa fiche.
+  void _ouvrirVenteRapide(ArticleBoutique a) async {
+    await showAppBottomSheet(
+      context,
+      title: 'Vendre : ${a.nom}',
+      child: _VenteForm(
+        articles: _articles,
+        categoriesDisponibles: _categoriesDisponibles,
+        preselected: a,
+        onSaved: () { Navigator.of(context).pop(); _load(); },
+      ),
+    );
+  }
+
   void _ouvrirAjoutArticle({ArticleBoutique? existing}) async {
     await showAppBottomSheet(
       context,
@@ -137,9 +153,11 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
     );
   }
 
-  /// Fiche détail d'un article — photo affichée en grand, dans ses vraies
-  /// proportions (BoxFit.contain : jamais recadrée ni déformée), avec les
-  /// actions Modifier / Réapprovisionner / Supprimer.
+  /// Fiche de gestion d'un article — photo affichée en grand, dans ses
+  /// vraies proportions (BoxFit.contain : jamais recadrée ni déformée),
+  /// avec les actions Vendre / Réapprovisionner / Modifier / Supprimer.
+  /// Ouverte depuis la petite icône « ⋮ » de la carte — la vente rapide,
+  /// elle, se fait en touchant directement la carte de l'article.
   void _ouvrirDetailArticle(ArticleBoutique a) {
     showDialog(
       context: context,
@@ -173,7 +191,17 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
               const SizedBox(height: 16),
               Text(a.nom, style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(a.taille.isNotEmpty ? '${a.categorie} · Taille ${a.taille}' : a.categorie, style: TextStyle(color: context.textFaint, fontSize: 13)),
+              Row(
+                children: [
+                  Text(a.taille.isNotEmpty ? '${a.categorie} · Taille ${a.taille}' : a.categorie, style: TextStyle(color: context.textFaint, fontSize: 13)),
+                  if (a.couleur.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    ColorDot(nom: a.couleur, size: 11),
+                    const SizedBox(width: 4),
+                    Text(a.couleur, style: TextStyle(color: context.textFaint, fontSize: 13)),
+                  ],
+                ],
+              ),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -193,6 +221,25 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                 ],
               ),
               const SizedBox(height: 18),
+              if (a.qte > 0)
+                Row(
+                  children: [
+                    Expanded(
+                      child: GoldButton(label: 'Vendre cet article', icon: Icons.point_of_sale_outlined, onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _ouvrirVenteRapide(a);
+                      }),
+                    ),
+                  ],
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(color: AppColors.rose.withOpacity(0.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.rose.withOpacity(0.3))),
+                  child: Text('Réapprovisionnez avant de pouvoir vendre cet article', textAlign: TextAlign.center, style: TextStyle(color: AppColors.rose, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -207,7 +254,7 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: GoldButton(label: 'Modifier', onPressed: () {
+                    child: GhostButton(label: 'Modifier', onPressed: () {
                       Navigator.of(ctx).pop();
                       _ouvrirAjoutArticle(existing: a);
                     }),
@@ -367,7 +414,10 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                                   final a = articlesCat[i];
                                   final stockBas = a.qte <= 0;
                                   return InkWell(
-                                    onTap: () => _ouvrirDetailArticle(a),
+                                    // Toucher la carte vend directement cet article — la
+                                    // fiche de gestion (modifier/réapprovisionner/supprimer)
+                                    // reste accessible via la petite icône « ⋮ ».
+                                    onTap: stockBas ? () => _ouvrirDetailArticle(a) : () => _ouvrirVenteRapide(a),
                                     borderRadius: BorderRadius.circular(14),
                                     child: Container(
                                       decoration: BoxDecoration(
@@ -403,6 +453,18 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                                                     ),
                                                   ),
                                                 ),
+                                                Positioned(
+                                                  top: 6, left: 6,
+                                                  child: InkWell(
+                                                    onTap: () => _ouvrirDetailArticle(a),
+                                                    borderRadius: BorderRadius.circular(999),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.all(5),
+                                                      decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
+                                                      child: const Icon(Icons.more_vert, size: 14, color: Colors.white),
+                                                    ),
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           ),
@@ -412,8 +474,21 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(a.nom, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w600, fontSize: 12.5)),
-                                                if (a.taille.isNotEmpty)
-                                                  Text('Taille ${a.taille}', style: TextStyle(color: context.textFaint, fontSize: 10)),
+                                                if (a.taille.isNotEmpty || a.couleur.isNotEmpty) ...[
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      if (a.couleur.isNotEmpty) ...[ColorDot(nom: a.couleur, size: 8), const SizedBox(width: 4)],
+                                                      Expanded(
+                                                        child: Text(
+                                                          [if (a.taille.isNotEmpty) 'Taille ${a.taille}', if (a.couleur.isNotEmpty) a.couleur].join(' · '),
+                                                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                                                          style: TextStyle(color: context.textFaint, fontSize: 10),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
                                                 const SizedBox(height: 2),
                                                 Text(fmtFcfa(a.prix), style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 12.5)),
                                               ],
@@ -447,7 +522,18 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                                     children: [
                                       Text('${v.article} × ${v.quantite.toStringAsFixed(v.quantite == v.quantite.roundToDouble() ? 0 : 1)}',
                                           style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500, fontSize: 13.5)),
-                                      Text('${v.categorie} · ${v.date}', style: TextStyle(color: context.textFaint, fontSize: 11.5)),
+                                      Row(
+                                        children: [
+                                          if (v.couleur.isNotEmpty) ...[ColorDot(nom: v.couleur, size: 8), const SizedBox(width: 5)],
+                                          Expanded(
+                                            child: Text(
+                                              [v.categorie, if (v.couleur.isNotEmpty) v.couleur, v.date].join(' · '),
+                                              style: TextStyle(color: context.textFaint, fontSize: 11.5),
+                                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -509,6 +595,7 @@ class _ArticleFormState extends State<_ArticleForm> {
   final _qteCtrl = TextEditingController();
   String? _categorie;
   String? _taille;
+  String? _couleur;
   String? _photo;
   bool _saving = false;
 
@@ -522,6 +609,7 @@ class _ArticleFormState extends State<_ArticleForm> {
       _qteCtrl.text = a.qte == a.qte.roundToDouble() ? a.qte.toStringAsFixed(0) : a.qte.toString();
       _categorie = a.categorie;
       _taille = a.taille.isEmpty ? null : a.taille;
+      _couleur = a.couleur.isEmpty ? null : a.couleur;
       _photo = a.photo.isEmpty ? null : a.photo;
     } else {
       _qteCtrl.text = '0';
@@ -536,7 +624,7 @@ class _ArticleFormState extends State<_ArticleForm> {
         id: widget.existing!.id,
         nom: _nomCtrl.text.trim(), categorie: _categorie!.trim(),
         prix: double.tryParse(_prixCtrl.text) ?? 0,
-        photo: _photo ?? '', taille: _taille ?? '',
+        photo: _photo ?? '', taille: _taille ?? '', couleur: _couleur ?? '',
         qte: double.tryParse(_qteCtrl.text) ?? 0,
       );
       await ArticleBoutiqueRepository().update(updated);
@@ -544,7 +632,7 @@ class _ArticleFormState extends State<_ArticleForm> {
       await ArticleBoutiqueRepository().create(
         nom: _nomCtrl.text.trim(), categorie: _categorie!.trim(),
         prix: double.tryParse(_prixCtrl.text) ?? 0,
-        photo: _photo ?? '', taille: _taille ?? '',
+        photo: _photo ?? '', taille: _taille ?? '', couleur: _couleur ?? '',
         qte: double.tryParse(_qteCtrl.text) ?? 0,
       );
     }
@@ -587,6 +675,10 @@ class _ArticleFormState extends State<_ArticleForm> {
             items: [for (final t in taillesPretAPorter) DropdownMenuItem(value: t, child: Text(t, style: TextStyle(color: context.textPrimary)))],
             onChanged: (v) => setState(() => _taille = v),
           ),
+          const SizedBox(height: 14),
+          Text('Couleur', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 8),
+          ColorSwatchPickerField(value: _couleur, onChanged: (v) => setState(() => _couleur = v)),
         ],
         const SizedBox(height: 14),
         Row(
@@ -629,8 +721,12 @@ class _ArticleFormState extends State<_ArticleForm> {
 class _VenteForm extends StatefulWidget {
   final List<ArticleBoutique> articles;
   final List<String> categoriesDisponibles;
+  /// Quand renseigné, le formulaire s'ouvre déjà prêt à vendre cet article
+  /// précis (vente rapide déclenchée en touchant sa carte) — la sélection
+  /// dans le catalogue est alors inutile et n'est pas affichée.
+  final ArticleBoutique? preselected;
   final VoidCallback onSaved;
-  const _VenteForm({required this.articles, required this.categoriesDisponibles, required this.onSaved});
+  const _VenteForm({required this.articles, required this.categoriesDisponibles, this.preselected, required this.onSaved});
 
   @override
   State<_VenteForm> createState() => _VenteFormState();
@@ -640,12 +736,32 @@ class _VenteFormState extends State<_VenteForm> {
   String? _article;
   String? _categorie;
   String? _taille;
+  String? _couleur;
   double? _stockDisponible;
   bool _depuisCatalogue = false;
   final _prixCtrl = TextEditingController(text: '0');
   final _quantiteCtrl = TextEditingController(text: '1');
   String _mode = 'Espèces';
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pré-remplissage direct des champs (sans setState : le premier build
+    // n'a pas encore eu lieu, inutile de forcer un redessin ici) — même
+    // logique que _selectionnerArticleCatalogue pour un article trouvé
+    // dans le catalogue.
+    final p = widget.preselected;
+    if (p != null) {
+      _article = p.nom;
+      _depuisCatalogue = true;
+      _categorie = p.categorie;
+      _taille = p.taille.isEmpty ? null : p.taille;
+      _couleur = p.couleur.isEmpty ? null : p.couleur;
+      _prixCtrl.text = p.prix.toStringAsFixed(0);
+      _stockDisponible = p.qte;
+    }
+  }
 
   void _selectionnerArticleCatalogue(String? nom) {
     setState(() {
@@ -655,6 +771,7 @@ class _VenteFormState extends State<_VenteForm> {
         _depuisCatalogue = true;
         _categorie = trouve.first.categorie;
         _taille = trouve.first.taille.isEmpty ? null : trouve.first.taille;
+        _couleur = trouve.first.couleur.isEmpty ? null : trouve.first.couleur;
         _prixCtrl.text = trouve.first.prix.toStringAsFixed(0);
         _stockDisponible = trouve.first.qte;
       } else {
@@ -663,6 +780,7 @@ class _VenteFormState extends State<_VenteForm> {
         _depuisCatalogue = false;
         _categorie = null;
         _taille = null;
+        _couleur = null;
         _stockDisponible = null;
       }
     });
@@ -675,7 +793,7 @@ class _VenteFormState extends State<_VenteForm> {
     if (nom.isEmpty || (_categorie ?? '').trim().isEmpty || prix <= 0 || quantite <= 0) return;
     setState(() => _saving = true);
     await VenteBoutiqueRepository().create(
-      article: nom, categorie: _categorie!.trim(), taille: _taille ?? '',
+      article: nom, categorie: _categorie!.trim(), taille: _taille ?? '', couleur: _couleur ?? '',
       prixUnitaire: prix, quantite: quantite, mode: _mode,
     );
     if (!mounted) return;
@@ -690,15 +808,45 @@ class _VenteFormState extends State<_VenteForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Article *', style: TextStyle(color: context.textMuted, fontSize: 12)),
-        const SizedBox(height: 6),
-        CatalogPickerField(
-          options: [for (final a in widget.articles) a.nom],
-          initialValue: _article,
-          hintText: 'Choisir dans le catalogue…',
-          customHintText: "Nom de l'article",
-          onChanged: _selectionnerArticleCatalogue,
-        ),
+        if (widget.preselected != null) ...[
+          // Vente rapide : l'article est déjà connu (on a touché sa carte),
+          // pas besoin de le rechercher dans une liste.
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: widget.preselected!.photo.isNotEmpty
+                    ? Image.memory(base64Decode(widget.preselected!.photo), width: 48, height: 48, fit: BoxFit.cover)
+                    : Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(10)),
+                        child: Icon(Icons.storefront_outlined, size: 20, color: context.textFaint),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.preselected!.nom, style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(widget.preselected!.categorie, style: TextStyle(color: context.textFaint, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          Text('Article *', style: TextStyle(color: context.textMuted, fontSize: 12)),
+          const SizedBox(height: 6),
+          CatalogPickerField(
+            options: [for (final a in widget.articles) a.nom],
+            initialValue: _article,
+            hintText: 'Choisir dans le catalogue…',
+            customHintText: "Nom de l'article",
+            onChanged: _selectionnerArticleCatalogue,
+          ),
+        ],
         if (_stockDisponible != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -732,6 +880,17 @@ class _VenteFormState extends State<_VenteForm> {
               child: Text(_taille!, style: TextStyle(color: context.textPrimary, fontSize: 13.5)),
             ),
           ],
+          if (_couleur != null) ...[
+            const SizedBox(height: 14),
+            Text('Couleur', style: TextStyle(color: context.textMuted, fontSize: 12)),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(color: context.cardBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: context.cardBorder)),
+              child: Row(children: [ColorDot(nom: _couleur!, size: 12), const SizedBox(width: 8), Text(_couleur!, style: TextStyle(color: context.textPrimary, fontSize: 13.5))]),
+            ),
+          ],
         ] else ...[
           // Article libre (pas dans le catalogue) — la catégorie doit être
           // précisée à la main, et une taille peut être choisie si besoin.
@@ -755,6 +914,10 @@ class _VenteFormState extends State<_VenteForm> {
               items: [for (final t in taillesPretAPorter) DropdownMenuItem(value: t, child: Text(t, style: TextStyle(color: context.textPrimary)))],
               onChanged: (v) => setState(() => _taille = v),
             ),
+            const SizedBox(height: 14),
+            Text('Couleur', style: TextStyle(color: context.textMuted, fontSize: 12)),
+            const SizedBox(height: 8),
+            ColorSwatchPickerField(value: _couleur, onChanged: (v) => setState(() => _couleur = v)),
           ],
         ],
         const SizedBox(height: 14),

@@ -5,9 +5,10 @@ class ArticleBoutique {
   final double prix;
   final String photo;
   final String taille;
+  final String couleur;
   final double qte;
 
-  ArticleBoutique({required this.id, required this.nom, required this.categorie, this.prix = 0, this.photo = '', this.taille = '', this.qte = 0});
+  ArticleBoutique({required this.id, required this.nom, required this.categorie, this.prix = 0, this.photo = '', this.taille = '', this.couleur = '', this.qte = 0});
 
   factory ArticleBoutique.fromMap(Map<String, dynamic> map) => ArticleBoutique(
         id: map['id'] as String,
@@ -16,10 +17,11 @@ class ArticleBoutique {
         prix: (map['prix'] as num?)?.toDouble() ?? 0,
         photo: map['photo'] as String? ?? '',
         taille: map['taille'] as String? ?? '',
+        couleur: map['couleur'] as String? ?? '',
         qte: (map['qte'] as num?)?.toDouble() ?? 0,
       );
 
-  Map<String, dynamic> toMap() => {'id': id, 'nom': nom, 'categorie': categorie, 'prix': prix, 'photo': photo, 'taille': taille, 'qte': qte};
+  Map<String, dynamic> toMap() => {'id': id, 'nom': nom, 'categorie': categorie, 'prix': prix, 'photo': photo, 'taille': taille, 'couleur': couleur, 'qte': qte};
 }
 
 class VenteBoutique {
@@ -27,6 +29,7 @@ class VenteBoutique {
   final String article;
   final String categorie;
   final String taille;
+  final String couleur;
   final double prixUnitaire;
   final double quantite;
   final double montant;
@@ -37,6 +40,7 @@ class VenteBoutique {
     required this.article,
     required this.categorie,
     this.taille = '',
+    this.couleur = '',
     this.prixUnitaire = 0,
     this.quantite = 1,
     this.montant = 0,
@@ -48,6 +52,7 @@ class VenteBoutique {
         article: map['article'] as String? ?? '',
         categorie: map['categorie'] as String? ?? 'Autre',
         taille: map['taille'] as String? ?? '',
+        couleur: map['couleur'] as String? ?? '',
         prixUnitaire: (map['prixUnitaire'] as num?)?.toDouble() ?? 0,
         quantite: (map['quantite'] as num?)?.toDouble() ?? 1,
         montant: (map['montant'] as num?)?.toDouble() ?? 0,
@@ -59,6 +64,7 @@ class VenteBoutique {
         'article': article,
         'categorie': categorie,
         'taille': taille,
+        'couleur': couleur,
         'prixUnitaire': prixUnitaire,
         'quantite': quantite,
         'montant': montant,

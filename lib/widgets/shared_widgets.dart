@@ -347,6 +347,141 @@ class _CatalogPickerFieldState extends State<CatalogPickerField> {
   }
 }
 
+/// Une couleur proposée dans la palette de tenues — un nom affiché sous le
+/// rond, jamais la couleur seule (accessibilité : ne jamais faire reposer
+/// une information uniquement sur la couleur).
+class TenueColor {
+  final String nom;
+  final Color couleur;
+  const TenueColor(this.nom, this.couleur);
+}
+
+/// Palette de couleurs courantes pour les tissus et tenues d'un atelier de
+/// couture (bazin, wax, boubou...) — évite d'avoir à taper le nom exact
+/// d'une couleur : on la choisit directement du regard.
+const List<TenueColor> paletteCouleursTenue = [
+  TenueColor('Noir', Color(0xFF1A1A1A)),
+  TenueColor('Blanc', Color(0xFFFFFFFF)),
+  TenueColor('Gris', Color(0xFF9CA3AF)),
+  TenueColor('Beige', Color(0xFFD8C4A0)),
+  TenueColor('Marron', Color(0xFF6B4226)),
+  TenueColor('Rouge', Color(0xFFD32F2F)),
+  TenueColor('Bordeaux', Color(0xFF7B1E3A)),
+  TenueColor('Rose', Color(0xFFE1596B)),
+  TenueColor('Orange', Color(0xFFE07B39)),
+  TenueColor('Jaune', Color(0xFFEAC435)),
+  TenueColor('Doré', Color(0xFFC9A430)),
+  TenueColor('Vert', Color(0xFF1F6B4C)),
+  TenueColor('Turquoise', Color(0xFF2BB8A6)),
+  TenueColor('Bleu ciel', Color(0xFF6C8FE0)),
+  TenueColor('Bleu marine', Color(0xFF1E3A6D)),
+  TenueColor('Violet', Color(0xFFA77DE0)),
+];
+
+/// Sélecteur de couleur par palette — remplace la saisie libre du nom
+/// d'une couleur : on touche directement le rond de la couleur voulue.
+/// Toucher à nouveau la couleur sélectionnée la désélectionne.
+class ColorSwatchPickerField extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+  const ColorSwatchPickerField({super.key, this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 12,
+      children: [
+        for (final c in paletteCouleursTenue)
+          _ColorSwatch(
+            tenueColor: c,
+            selected: value == c.nom,
+            onTap: () => onChanged(value == c.nom ? null : c.nom),
+          ),
+      ],
+    );
+  }
+}
+
+class _ColorSwatch extends StatelessWidget {
+  final TenueColor tenueColor;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ColorSwatch({required this.tenueColor, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final besoinContour = tenueColor.couleur.computeLuminance() > 0.82;
+    final coche = tenueColor.couleur.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        width: 50,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: tenueColor.couleur,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? AppColors.gold : (besoinContour ? context.cardBorder : Colors.transparent),
+                  width: selected ? 2.6 : 1,
+                ),
+                boxShadow: selected ? [BoxShadow(color: AppColors.gold.withOpacity(0.45), blurRadius: 8, spreadRadius: 1)] : null,
+              ),
+              alignment: Alignment.center,
+              child: selected ? Icon(Icons.check_rounded, size: 16, color: coche) : null,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              tenueColor.nom,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 9.5, color: selected ? AppColors.gold : context.textFaint, fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Petit rond de couleur + libellé — utilisé partout où une couleur de
+/// tenue doit être rappelée en dehors du sélecteur (fiche article, carte
+/// catalogue, formulaire de vente).
+class ColorDot extends StatelessWidget {
+  final String nom;
+  final double size;
+  const ColorDot({super.key, required this.nom, this.size = 10});
+
+  static TenueColor? _find(String nom) {
+    for (final c in paletteCouleursTenue) {
+      if (c.nom == nom) return c;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _find(nom);
+    if (c == null) return const SizedBox.shrink();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: c.couleur,
+        shape: BoxShape.circle,
+        border: Border.all(color: context.cardBorder, width: 1),
+      ),
+    );
+  }
+}
+
 class ScreenHeader extends StatelessWidget {
   final String eyebrow;
   final String title;
