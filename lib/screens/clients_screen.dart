@@ -217,58 +217,80 @@ class _ClientFormState extends State<_ClientForm> {
   }
 
   Future<void> _save() async {
-    if (_nomCtrl.text.trim().isEmpty) return;
-    setState(() => _saving = true);
+    if (_saving || _nomCtrl.text.trim().isEmpty) return;
 
+    final mesures = <String, dynamic>{...?widget.existing?.mesures};
     final grille = MesuresGrilles.forSexe(_sexe);
-    final Map<String, dynamic> mesures = {};
     for (final field in grille) {
       final raw = _mesureCtrls[field.key]?.text.trim() ?? '';
-      if (raw.isEmpty) continue;
-      mesures[field.key] = field.isDash ? raw : (num.tryParse(raw) ?? 0);
+      if (raw.isEmpty || raw == mesures[field.key]?.toString()) continue;
+      final value = field.isDash ? raw : num.tryParse(raw.replaceAll(',', '.'));
+      if (value == null || (value is num && (!value.isFinite || value <= 0))) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vérifie la mesure ${field.label}.')),
+        );
+        return;
+      }
+      mesures[field.key] = value;
     }
 
-    if (widget.existing != null) {
-      final updated = widget.existing!.copyWith(
-        nom: _nomCtrl.text.trim(),
-        tel: _telCtrl.text.trim(),
-        ville: _villeCtrl.text.trim(),
-        sexe: _sexe ?? '',
-        mesures: mesures,
-      );
-      await _repo.update(updated);
-    } else {
-      final nouveauClient = await _repo.create(
-        nom: _nomCtrl.text.trim(),
-        tel: _telCtrl.text.trim(),
-        ville: _villeCtrl.text.trim(),
-        sexe: _sexe ?? '',
-        mesures: mesures,
-      );
-
-      // Si une première commande a été renseignée, on la crée directement
-      // (et sa facture automatiquement si une avance a été versée) — pas
-      // besoin de ressaisir le client dans la section Commandes ensuite.
-      if ((_cmdModele ?? '').trim().isNotEmpty) {
-        final montant = double.tryParse(_cmdMontantCtrl.text) ?? 0;
-        final avance = double.tryParse(_cmdAvanceCtrl.text) ?? 0;
-        const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-        final dateChoisie = _cmdLivraison ?? DateTime.now();
-        final livraison = '${dateChoisie.day.toString().padLeft(2, '0')} ${mois[dateChoisie.month - 1]} ${dateChoisie.year}';
-        final commande = await CommandeRepository().create(
-          client: nouveauClient.nom,
-          modele: _cmdModele!.trim(),
-          couturier: _cmdCouturier ?? '',
-          livraison: livraison,
-          montant: montant,
-          avance: avance,
-          photo: _cmdPhoto ?? '',
+    setState(() => _saving = true);
+    var clientCree = false;
+    try {
+      if (widget.existing != null) {
+        final updated = widget.existing!.copyWith(
+          nom: _nomCtrl.text.trim(),
+          tel: _telCtrl.text.trim(),
+          ville: _villeCtrl.text.trim(),
+          sexe: _sexe ?? '',
+          mesures: mesures,
         );
-        if (avance > 0) {
-          await PaiementRepository().create(client: nouveauClient.nom, montant: avance, mode: 'Espèces', reference: commande.id);
-          await FactureRepository().creerDepuisCommande(commande);
+        await _repo.update(updated);
+      } else {
+        final nouveauClient = await _repo.create(
+          nom: _nomCtrl.text.trim(),
+          tel: _telCtrl.text.trim(),
+          ville: _villeCtrl.text.trim(),
+          sexe: _sexe ?? '',
+          mesures: mesures,
+        );
+
+        clientCree = true;
+
+        // Si une première commande a été renseignée, on la crée directement
+        // (et sa facture automatiquement si une avance a été versée) — pas
+        // besoin de ressaisir le client dans la section Commandes ensuite.
+        if ((_cmdModele ?? '').trim().isNotEmpty) {
+          final montant = double.tryParse(_cmdMontantCtrl.text) ?? 0;
+          final avance = double.tryParse(_cmdAvanceCtrl.text) ?? 0;
+          const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+          final dateChoisie = _cmdLivraison ?? DateTime.now();
+          final livraison = '${dateChoisie.day.toString().padLeft(2, '0')} ${mois[dateChoisie.month - 1]} ${dateChoisie.year}';
+          final commande = await CommandeRepository().create(
+            client: nouveauClient.nom,
+            modele: _cmdModele!.trim(),
+            couturier: _cmdCouturier ?? '',
+            livraison: livraison,
+            montant: montant,
+            avance: avance,
+            photo: _cmdPhoto ?? '',
+          );
+          if (avance > 0) {
+            await PaiementRepository().create(client: nouveauClient.nom, montant: avance, mode: 'Espèces', reference: commande.id);
+            await FactureRepository().creerDepuisCommande(commande);
+          }
         }
       }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(clientCree
+            ? 'Client enregistré. Vérifie la commande et son paiement.'
+            : "L'enregistrement n'a pas pu être terminé.")),
+      );
+      if (clientCree) widget.onSaved();
+      return;
     }
     if (!mounted) return;
     setState(() => _saving = false);
@@ -312,6 +334,8 @@ class _ClientFormState extends State<_ClientForm> {
           Text('MESURES ${_sexe?.toUpperCase() ?? ''} (CM) — FACULTATIF',
               style: TextStyle(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
           const SizedBox(height: 10),
+          if (widget.existing?.mesures.isNotEmpty ?? false)
+            const Text("Un champ laissé vide conserve sa valeur enregistrée."),
           Wrap(
             spacing: 8,
             runSpacing: 8,

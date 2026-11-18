@@ -4,6 +4,8 @@ import '../theme/business_info.dart';
 import '../widgets/shared_widgets.dart';
 import 'dashboard_screen.dart';
 import 'clients_screen.dart';
+import 'mesures_screen.dart';
+import 'messages_screen.dart';
 import 'commandes_screen.dart';
 import 'factures_screen.dart';
 import 'parametres_screen.dart';
@@ -35,6 +37,8 @@ class DrawerItem {
 /// propre couleur, pour que les tuiles du menu "Plus" soient visuellement
 /// distinctes d'un coup d'œil.
 final List<DrawerItem> drawerItems = [
+  DrawerItem('Mesures enregistrées', Icons.straighten_outlined, AppColors.gold, (_) => const MesuresScreen()),
+  DrawerItem('Messages', Icons.chat_bubble_outline, AppColors.deepGreen, (_) => Scaffold(appBar: AppBar(title: const Text('Messages')), body: const MessagesScreen())),
   DrawerItem('Modèles de couture', Icons.checkroom_outlined, AppColors.gold, (_) => const ProduitsScreen()),
   DrawerItem('Devis', Icons.description_outlined, AppColors.blue, (_) => const DevisScreen()),
   DrawerItem('Calendrier', Icons.calendar_month_outlined, AppColors.purple, (_) => const CalendrierScreen()),
