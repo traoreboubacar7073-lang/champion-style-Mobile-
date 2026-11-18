@@ -1,15 +1,20 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
 class AlertItem {
+  final String readKey;
   final String titre;
   final String detail;
   final IconData icon;
   final Color color;
   final String cible; // clé de section pour la navigation
-  AlertItem({required this.titre, required this.detail, required this.icon, required this.color, required this.cible});
+  AlertItem({required this.readKey, required this.titre, required this.detail, required this.icon, required this.color, required this.cible});
 }
 
 const List<String> _moisAbbrAlert = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -34,6 +39,7 @@ Future<List<AlertItem>> computeAlerts() async {
   for (final f in factures) {
     if (f.statut != 'Payée' && f.solde > 0) {
       alerts.add(AlertItem(
+        readKey: jsonEncode(['facture', f.id, f.statut, f.solde]),
         titre: 'Facture ${f.statut == 'Impayée' ? 'impayée' : 'partiellement payée'} — ${f.client}',
         detail: '${f.id} · Solde restant : ${fmtFcfa(f.solde)}',
         icon: Icons.receipt_long_outlined, color: AppColors.rose, cible: 'factures',
@@ -45,6 +51,7 @@ Future<List<AlertItem>> computeAlerts() async {
   for (final s in stock) {
     if (s.bas) {
       alerts.add(AlertItem(
+        readKey: jsonEncode(['stock', s.id, s.qte, s.seuil, s.unite]),
         titre: 'Stock bas — ${s.nom}',
         detail: '${s.qte.toStringAsFixed(0)} / ${s.seuil.toStringAsFixed(0)} ${s.unite}',
         icon: Icons.warning_amber_rounded, color: AppColors.rose, cible: 'stock',
@@ -56,6 +63,7 @@ Future<List<AlertItem>> computeAlerts() async {
   for (final d in depenses) {
     if (d.reliquat > 0) {
       alerts.add(AlertItem(
+        readKey: jsonEncode(['reliquat', d.id, d.reliquat]),
         titre: 'Reliquat à régler — ${d.fournisseur.isNotEmpty ? d.fournisseur : d.categorie}',
         detail: '${d.categorie} · Reste dû : ${fmtFcfa(d.reliquat)}',
         icon: Icons.account_balance_wallet_outlined, color: AppColors.rose, cible: 'depenses',
@@ -71,6 +79,7 @@ Future<List<AlertItem>> computeAlerts() async {
     final dateLivraison = _parseFrDateAlert(c.livraison);
     if (dateLivraison != null && !dateLivraison.isBefore(DateTime(now.year, now.month, now.day)) && !dateLivraison.isAfter(dansTroisJours)) {
       alerts.add(AlertItem(
+        readKey: jsonEncode(['livraison', c.id, c.livraison]),
         titre: 'Livraison proche — ${c.client}',
         detail: '${c.id} · Prévue le ${c.livraison}',
         icon: Icons.local_shipping_outlined, color: AppColors.gold, cible: 'commandes',
@@ -80,6 +89,7 @@ Future<List<AlertItem>> computeAlerts() async {
       final dateEssayage = _parseFrDateAlert(c.dateEssayage);
       if (dateEssayage != null && !dateEssayage.isBefore(DateTime(now.year, now.month, now.day)) && !dateEssayage.isAfter(dansTroisJours)) {
         alerts.add(AlertItem(
+          readKey: jsonEncode(['essayage', c.id, c.dateEssayage]),
           titre: 'Essayage proche — ${c.client}',
           detail: '${c.id} · Prévu le ${c.dateEssayage}',
           icon: Icons.event_outlined, color: AppColors.purple, cible: 'commandes',
@@ -116,6 +126,7 @@ Future<List<AlertItem>> computeAlerts() async {
 
     if (estDu) {
       alerts.add(AlertItem(
+        readKey: jsonEncode(['employe', e.id, dernierPaiement?.toIso8601String(), e.frequencePaiement]),
         titre: 'Paiement employé dû — ${e.nom}',
         detail: detail,
         icon: Icons.payments_outlined, color: AppColors.purple, cible: 'employes',
@@ -128,4 +139,29 @@ Future<List<AlertItem>> computeAlerts() async {
 
 String _formatDateAlert(DateTime d) {
   return '${d.day.toString().padLeft(2, '0')} ${_moisAbbrAlert[d.month - 1]} ${d.year}';
+}
+
+Future<File> _readAlertsFile() async {
+  final directory = await getApplicationSupportDirectory();
+  return File('${directory.path}/read_alerts.json');
+}
+
+Future<Set<String>> loadReadAlerts() async {
+  try {
+    final file = await _readAlertsFile();
+    if (!await file.exists()) return {};
+    final values = jsonDecode(await file.readAsString());
+    return values is List ? values.whereType<String>().toSet() : {};
+  } on FormatException {
+    return {};
+  } on FileSystemException {
+    return {};
+  }
+}
+
+Future<void> saveReadAlerts(Set<String> keys) async {
+  final file = await _readAlertsFile();
+  final temporary = File('${file.path}.tmp');
+  await temporary.writeAsString(jsonEncode(keys.toList()), flush: true);
+  await temporary.rename(file.path);
 }

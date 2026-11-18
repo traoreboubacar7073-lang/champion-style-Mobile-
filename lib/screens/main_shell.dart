@@ -241,25 +241,50 @@ class _NotificationBell extends StatefulWidget {
 
 class _NotificationBellState extends State<_NotificationBell> {
   List<AlertItem> _alerts = [];
-  bool _loaded = false;
+  late final Future<Set<String>> _storedReadKeys;
+  Set<String> _readKeys = {};
+  bool _panelOpen = false;
 
   @override
   void initState() {
     super.initState();
+    _storedReadKeys = loadReadAlerts().then((keys) => _readKeys = keys);
     _load();
   }
 
   Future<void> _load() async {
+    await _storedReadKeys;
     final alerts = await computeAlerts();
     if (!mounted) return;
     setState(() {
       _alerts = alerts;
-      _loaded = true;
     });
   }
 
-  void _openPanel() async {
+  Future<void> _openPanel() async {
+    if (_panelOpen) return;
+    _panelOpen = true;
+    try {
+      await _showAlerts();
+    } finally {
+      _panelOpen = false;
+    }
+  }
+
+  Future<void> _showAlerts() async {
     await _load();
+    if (!mounted) return;
+    final seen = _alerts.map((alert) => alert.readKey).toSet();
+    setState(() => _readKeys = seen);
+    try {
+      await saveReadAlerts(seen);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible de mémoriser la lecture des alertes.")),
+        );
+      }
+    }
     if (!mounted) return;
     await showAppBottomSheet(
       context,
@@ -324,6 +349,7 @@ class _NotificationBellState extends State<_NotificationBell> {
 
   @override
   Widget build(BuildContext context) {
+    final unread = _alerts.where((alert) => !_readKeys.contains(alert.readKey)).length;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -332,14 +358,14 @@ class _NotificationBellState extends State<_NotificationBell> {
           tooltip: 'Notifications',
           onPressed: _openPanel,
         ),
-        if (_loaded && _alerts.isNotEmpty)
+        if (unread > 0)
           Positioned(
             right: 6, top: 6,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(color: AppColors.rose, borderRadius: BorderRadius.circular(999)),
               constraints: const BoxConstraints(minWidth: 16),
-              child: Text('${_alerts.length}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+              child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
             ),
           ),
       ],
