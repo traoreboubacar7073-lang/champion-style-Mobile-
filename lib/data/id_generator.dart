@@ -23,7 +23,11 @@ class IdGenerator {
   static Future<String> next(Database db, String table) async {
     final prefix = _prefixes[table] ?? 'ID';
     final rows = await db.query(table, columns: ['id']);
-    int maxNum = 0;
+    int maxNum = switch (table) {
+      'factures' => 3300,
+      'devis' => 220,
+      _ => 0,
+    };
     final regex = RegExp(r'(\d+)$');
     for (final row in rows) {
       final id = row['id'] as String? ?? '';
@@ -35,8 +39,8 @@ class IdGenerator {
     }
     final next = maxNum + 1;
     if (table == 'commandes') return '$prefix-${next.toString().padLeft(4, '0')}';
-    if (table == 'factures') return '$prefix-${3300 + next}';
-    if (table == 'devis') return '$prefix-${220 + next}';
+    if (table == 'factures') return '$prefix-$next';
+    if (table == 'devis') return '$prefix-$next';
     return '$prefix-${next.toString().padLeft(2, '0')}';
   }
 }

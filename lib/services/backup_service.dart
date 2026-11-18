@@ -26,14 +26,12 @@ class BackupService {
       'application': 'Champions Style',
       'dateExport': DateTime.now().toIso8601String(),
     };
-    for (final table in _tables) {
-      try {
-        data[table] = await db.query(table);
-      } catch (_) {
-        data[table] = [];
+    return db.transaction((txn) async {
+      for (final table in _tables) {
+        data[table] = await txn.query(table);
       }
-    }
-    return data;
+      return data;
+    });
   }
 
   /// Génère le fichier de sauvegarde et ouvre le sélecteur de partage
@@ -69,12 +67,19 @@ class BackupService {
       for (final table in _tables) {
         if (!data.containsKey(table)) continue;
         final rows = data[table];
-        if (rows is! List) continue;
+        if (rows is! List || rows.any((row) => row is! Map<String, dynamic>)) {
+          throw FormatException('Table de sauvegarde invalide : $table.');
+        }
         await txn.delete(table);
         for (final row in rows) {
-          if (row is Map) {
-            await txn.insert(table, Map<String, dynamic>.from(row), conflictAlgorithm: ConflictAlgorithm.replace);
+          final values = row as Map<String, dynamic>;
+          final mesures = values['mesures'];
+          if (table == 'clients' && mesures != null && mesures != '') {
+            if (mesures is! String || jsonDecode(mesures) is! Map) {
+              throw const FormatException('Fiche de mesures invalide dans la sauvegarde.');
+            }
           }
+          await txn.insert(table, values, conflictAlgorithm: ConflictAlgorithm.abort);
         }
       }
     });
